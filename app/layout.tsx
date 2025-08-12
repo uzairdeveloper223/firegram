@@ -10,6 +10,9 @@ const inter = Inter({ subsets: ["latin"] })
 export const metadata: Metadata = {
   title: "Firegram - High-End Social Platform",
   description: "Connect, share, and grow your business with Firegram's premium social features",
+   icons: {
+    icon: "/favicon.svg",
+  },
 }
 
 export default function RootLayout({

@@ -1,0 +1,12 @@
+<!-- Save this as favicon.svg in your public/ directory -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="fire" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ff9800"/>
+      <stop offset="100%" stop-color="#f44336"/>
+    </linearGradient>
+  </defs>
+  <circle cx="32" cy="32" r="32" fill="#fff"/>
+  <path d="M32 12c4 8 12 12 12 22 0 6-5 12-12 12s-12-6-12-12c0-10 8-14 12-22z" fill="url(#fire)"/>
+  <text x="32" y="44" text-anchor="middle" font-size="24" font-family="Arial, sans-serif" fill="#fff" font-weight="bold">F</text>
+</svg>
