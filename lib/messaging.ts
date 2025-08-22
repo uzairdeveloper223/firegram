@@ -6,9 +6,10 @@ import { FiregramMessage, FiregramChat } from './types'
 
 export interface SendMessageData {
   content: string
-  type: 'text' | 'image' | 'file' | 'post_share'
+  type: 'text' | 'image' | 'video' | 'file' | 'post_share'
   mediaUrl?: string
   mediaType?: string
+  duration?: number
   replyTo?: string
   sharedPostId?: string
 }
@@ -109,6 +110,7 @@ export const sendMessage = async (
       ...(data.replyTo && { replyTo: data.replyTo }),
       ...(data.mediaUrl && { mediaUrl: data.mediaUrl }),
       ...(data.mediaType && { mediaType: data.mediaType }),
+      ...(data.duration && { duration: data.duration }),
       ...(data.sharedPostId && { sharedPostId: data.sharedPostId })
     }
 

@@ -14,25 +14,28 @@ import {
 import { FiregramChat, FiregramMessage } from '@/lib/types'
 import { SharedPostMessage } from './shared-post-message'
 import { GroupSettingsDialog } from './group-settings-dialog'
-import { 
-  listenToChatMessages, 
-  sendMessage, 
-  editMessage, 
-  deleteMessage, 
-  markMessagesAsRead 
+import {
+  listenToChatMessages,
+  sendMessage,
+  editMessage,
+  deleteMessage,
+  markMessagesAsRead
 } from '@/lib/messaging'
 import { uploadToImgBB } from '@/lib/imgbb'
+import { uploadMediaToCloudinary } from '@/lib/cloudinary'
+import { addVideoUsage } from '@/lib/video-usage'
 import { useToast } from '@/hooks/use-toast'
 import { database } from '@/lib/firebase'
 import { ref, set, get, remove } from 'firebase/database'
-import { 
-  ArrowLeft, 
-  Send, 
-  Image, 
-  MoreVertical, 
-  Reply, 
-  Edit, 
-  Trash2, 
+import {
+  ArrowLeft,
+  Send,
+  Image,
+  Video,
+  MoreVertical,
+  Reply,
+  Edit,
+  Trash2,
   Users,
   Search,
   
@@ -164,6 +167,50 @@ export function ChatWindow({ chat, currentUserId, onBack }: ChatWindowProps) {
     } catch (error) {
       toast({
         title: "Error uploading image",
+        variant: "destructive"
+      })
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const handleVideoUpload = async (file: File) => {
+    try {
+      setSending(true)
+      
+      // Upload to Cloudinary
+      const result = await uploadMediaToCloudinary(file)
+      if (result.success && result.url) {
+        // Check if user can upload this video based on their usage limits
+        const duration = result.duration || 10 // Default to 10 seconds if not available
+        const canUpload = await addVideoUsage(currentUserId, duration)
+        
+        if (!canUpload) {
+          toast({
+            title: "Video limit exceeded",
+            description: "You have exceeded your video upload limit. Please upgrade your account.",
+            variant: "destructive"
+          })
+          setSending(false)
+          return
+        }
+        
+        await sendMessage(chat.id!, currentUserId, {
+          content: 'Video',
+          type: 'video',
+          mediaUrl: result.url,
+          mediaType: file.type,
+          ...(result.duration && { duration: result.duration })
+        })
+      } else {
+        toast({
+          title: "Failed to upload video",
+          variant: "destructive"
+        })
+      }
+    } catch (error) {
+      toast({
+        title: "Error uploading video",
         variant: "destructive"
       })
     } finally {
@@ -438,23 +485,46 @@ export function ChatWindow({ chat, currentUserId, onBack }: ChatWindowProps) {
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*"
+            accept="image/*,video/*"
             className="hidden"
             onChange={(e) => {
               const file = e.target.files?.[0]
-              if (file) handleImageUpload(file)
+              if (file) {
+                if (file.type.startsWith('image/')) {
+                  handleImageUpload(file)
+                } else if (file.type.startsWith('video/')) {
+                  handleVideoUpload(file)
+                }
+              }
             }}
           />
           
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={sending}
-          >
-            <Image className="w-4 h-4" />
-          </Button>
+          <div className="flex space-x-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={sending}
+            >
+              <Image className="w-4 h-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                // Set accept attribute to video only
+                if (fileInputRef.current) {
+                  fileInputRef.current.accept = "video/*"
+                  fileInputRef.current.click()
+                }
+              }}
+              disabled={sending}
+            >
+              <Video className="w-4 h-4" />
+            </Button>
+          </div>
 
           <div className="flex-1">
             <Input
@@ -477,6 +547,13 @@ export function ChatWindow({ chat, currentUserId, onBack }: ChatWindowProps) {
       </div>
     </div>
   )
+}
+
+// Format time for display (simple version)
+const formatTime = (seconds: number): string => {
+  const mins = Math.floor(seconds / 60)
+  const secs = Math.floor(seconds % 60)
+  return `${mins}:${secs < 10 ? '0' : ''}${secs}`
 }
 
 interface MessageBubbleProps {
@@ -559,6 +636,25 @@ function MessageBubble({
                 alt="Shared image"
                 className="rounded-lg max-w-full h-auto"
               />
+            </div>
+          ) : message.type === 'video' && message.mediaUrl ? (
+            <div className="mb-2 relative">
+              <video
+                src={message.mediaUrl}
+                controls
+                className="rounded-lg max-w-full h-auto"
+                autoPlay={true}
+                muted
+                playsInline
+                onLoadedMetadata={(e) => {
+                  // You can handle video metadata here if needed
+                }}
+              />
+              {message.duration && (
+                <div className="absolute bottom-2 right-2 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded">
+                  {formatTime(message.duration)}
+                </div>
+              )}
             </div>
           ) : message.type === 'post_share' && message.sharedPostId ? (
             <div className="mb-2">

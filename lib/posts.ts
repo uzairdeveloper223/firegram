@@ -7,7 +7,8 @@ import { uploadToImgBB } from './imgbb'
 
 export interface CreatePostData {
   content: string
-  images: File[]
+  images: File[] | string[]
+  videos?: File[] | string[]
   privacy: 'public' | 'followers' | 'private'
   mentions?: string[]
   scheduledFor?: number
@@ -22,18 +23,43 @@ export interface PostResult {
 
 // Create a new post
 export const createPost = async (
-  authorId: string, 
+  authorId: string,
   data: CreatePostData
 ): Promise<PostResult> => {
   try {
-    // Upload images to ImgBB
+    // Upload images to ImgBB or use provided URLs
     const imageUrls: string[] = []
     for (const image of data.images) {
-      const result = await uploadToImgBB(image)
-      if (result.success && result.url) {
-        imageUrls.push(result.url)
+      if (typeof image === 'string') {
+        // Already a URL, use as is
+        imageUrls.push(image)
       } else {
-        return { success: false, error: 'Failed to upload images' }
+        // Upload File to ImgBB
+        const result = await uploadToImgBB(image)
+        if (result.success && result.url) {
+          imageUrls.push(result.url)
+        } else {
+          return { success: false, error: 'Failed to upload images' }
+        }
+      }
+    }
+    
+    // Upload videos to Cloudinary or use provided URLs
+    let videoUrls: string[] = []
+    if (data.videos) {
+      for (const video of data.videos) {
+        if (typeof video === 'string') {
+          // Already a URL, use as is
+          videoUrls.push(video)
+        } else {
+          // Upload File to Cloudinary
+          const result = await uploadToImgBB(video) // For now, we'll use ImgBB for videos too
+          if (result.success && result.url) {
+            videoUrls.push(result.url)
+          } else {
+            return { success: false, error: 'Failed to upload videos' }
+          }
+        }
       }
     }
 
@@ -42,6 +68,7 @@ export const createPost = async (
       authorId,
       content: data.content,
       images: imageUrls,
+      ...(videoUrls.length > 0 && { videos: videoUrls }), // Only add videos if there are any
       createdAt: Date.now(),
       privacy: data.privacy,
       isPinned: false,

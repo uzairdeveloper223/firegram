@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -11,26 +11,37 @@ import { Separator } from '@/components/ui/separator'
 import { useToast } from '@/hooks/use-toast'
 import { FiregramUser } from '@/lib/types'
 import { createPost, extractMentions, processImage } from '@/lib/posts'
-import { 
-  ImagePlus, 
-  X, 
-  Send, 
-  Users, 
-  Lock, 
+import { uploadMediaToCloudinary } from '@/lib/cloudinary'
+import { getUserVideoUsage, formatTime, addVideoUsage } from '@/lib/video-usage'
+import {
+  ImagePlus,
+  X,
+  Send,
+  Users,
+  Lock,
   Globe,
   RotateCcw,
   Crop,
   Palette,
-  Zap
+  Zap,
+  Video,
+  Play,
+  Info
 } from 'lucide-react'
 
 interface CreatePostFormProps {
   user: FiregramUser
 }
 
-interface ImageEdit {
-  rotation: number
-  filter: string
+interface MediaItem {
+  file: File
+  preview: string
+  type: 'image' | 'video'
+  edit?: {
+    rotation: number
+    filter: string
+  }
+  duration?: number // For videos
 }
 
 const IMAGE_FILTERS = [
@@ -49,60 +60,94 @@ export function CreatePostForm({ user }: CreatePostFormProps) {
 
   const [content, setContent] = useState('')
   const [privacy, setPrivacy] = useState<'public' | 'followers' | 'private'>('public')
-  const [images, setImages] = useState<File[]>([])
-  const [imagePreviews, setImagePreviews] = useState<string[]>([])
-  const [imageEdits, setImageEdits] = useState<ImageEdit[]>([])
+  const [mediaItems, setMediaItems] = useState<MediaItem[]>([])
+  const [videoUsage, setVideoUsage] = useState<{
+    totalDuration: number;
+    monthlyUsage: number;
+    limit: number;
+    remaining: number;
+  } | null>(null)
   const [loading, setLoading] = useState(false)
   const [mentions, setMentions] = useState<string[]>([])
-  const [editingImageIndex, setEditingImageIndex] = useState<number | null>(null)
+  const [editingMediaIndex, setEditingMediaIndex] = useState<number | null>(null)
   const [isFeatured, setIsFeatured] = useState(false)
 
-  const handleImageUpload = (files: FileList | null) => {
+  // Fetch user's video usage
+  useEffect(() => {
+    const fetchVideoUsage = async () => {
+      try {
+        const usage = await getUserVideoUsage(user.uid)
+        setVideoUsage(usage)
+      } catch (error) {
+        console.error('Error fetching video usage:', error)
+      }
+    }
+
+    fetchVideoUsage()
+  }, [user.uid])
+
+  const handleMediaUpload = (files: FileList | null) => {
     if (!files) return
 
-    const newFiles = Array.from(files).slice(0, 10 - images.length) // Max 10 images
-    const newPreviews: string[] = []
-    const newEdits: ImageEdit[] = []
+    const newMediaItems: MediaItem[] = []
+    const maxItems = 10 - mediaItems.length // Max 10 media items
 
-    newFiles.forEach(file => {
+    Array.from(files).slice(0, maxItems).forEach(file => {
       if (file.type.startsWith('image/')) {
         const preview = URL.createObjectURL(file)
-        newPreviews.push(preview)
-        newEdits.push({ rotation: 0, filter: 'none' })
+        newMediaItems.push({
+          file,
+          preview,
+          type: 'image',
+          edit: { rotation: 0, filter: 'none' }
+        })
+      } else if (file.type.startsWith('video/')) {
+        const preview = URL.createObjectURL(file)
+        newMediaItems.push({
+          file,
+          preview,
+          type: 'video'
+        })
       }
     })
 
-    setImages(prev => [...prev, ...newFiles])
-    setImagePreviews(prev => [...prev, ...newPreviews])
-    setImageEdits(prev => [...prev, ...newEdits])
+    setMediaItems(prev => [...prev, ...newMediaItems])
   }
 
-  const removeImage = (index: number) => {
-    URL.revokeObjectURL(imagePreviews[index])
-    setImages(prev => prev.filter((_, i) => i !== index))
-    setImagePreviews(prev => prev.filter((_, i) => i !== index))
-    setImageEdits(prev => prev.filter((_, i) => i !== index))
+  const removeMedia = (index: number) => {
+    URL.revokeObjectURL(mediaItems[index].preview)
+    setMediaItems(prev => prev.filter((_, i) => i !== index))
   }
 
   const rotateImage = (index: number) => {
-    setImageEdits(prev => {
-      const newEdits = [...prev]
-      newEdits[index] = {
-        ...newEdits[index],
-        rotation: (newEdits[index].rotation + 90) % 360
+    setMediaItems(prev => {
+      const newItems = [...prev]
+      if (newItems[index].type === 'image' && newItems[index].edit) {
+        newItems[index] = {
+          ...newItems[index],
+          edit: {
+            ...newItems[index].edit!,
+            rotation: (newItems[index].edit!.rotation + 90) % 360
+          }
+        }
       }
-      return newEdits
+      return newItems
     })
   }
 
   const applyFilter = (index: number, filter: string) => {
-    setImageEdits(prev => {
-      const newEdits = [...prev]
-      newEdits[index] = {
-        ...newEdits[index],
-        filter
+    setMediaItems(prev => {
+      const newItems = [...prev]
+      if (newItems[index].type === 'image' && newItems[index].edit) {
+        newItems[index] = {
+          ...newItems[index],
+          edit: {
+            ...newItems[index].edit!,
+            filter
+          }
+        }
       }
-      return newEdits
+      return newItems
     })
   }
 
@@ -115,10 +160,10 @@ export function CreatePostForm({ user }: CreatePostFormProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!content.trim() && images.length === 0) {
+    if (!content.trim() && mediaItems.length === 0) {
       toast({
         title: "Content Required",
-        description: "Please add some content or images to your post.",
+        description: "Please add some content or media to your post.",
         variant: "destructive"
       })
       return
@@ -127,28 +172,67 @@ export function CreatePostForm({ user }: CreatePostFormProps) {
     setLoading(true)
 
     try {
-      // Process images with edits
-      const processedImages: File[] = []
+      // Process media items (images and videos) with Cloudinary
+      const mediaUrls: string[] = []
       
-      for (let i = 0; i < images.length; i++) {
-        const file = images[i]
-        const edit = imageEdits[i]
+      for (let i = 0; i < mediaItems.length; i++) {
+        const mediaItem = mediaItems[i]
         
-        // Apply image processing (rotation, filters, etc.)
-        let processedFile = await processImage(file)
+        // Upload to Cloudinary
+        const result = await uploadMediaToCloudinary(mediaItem.file)
         
-        // Note: For simplicity, we're not implementing client-side rotation/filtering
-        // In a production app, you'd use canvas manipulation here
-        processedImages.push(processedFile)
+        if (result.success && result.url) {
+          mediaUrls.push(result.url)
+        } else {
+          throw new Error(result.error || "Failed to upload media")
+        }
+      }
+
+      // Separate images and videos
+      const imageUrls: string[] = []
+      const videoUrls: string[] = []
+      const videoDurations: number[] = [] // Track video durations
+      
+      mediaItems.forEach((item, index) => {
+        if (item.type === 'image') {
+          imageUrls.push(mediaUrls[index])
+        } else {
+          videoUrls.push(mediaUrls[index])
+          // For now, we'll use a placeholder duration
+          // In a real implementation, you would get the actual duration from the video file
+          videoDurations.push(10) // Placeholder for 10 seconds
+        }
+      })
+
+      // Check video usage limits
+      if (videoDurations.length > 0 && videoUsage) {
+        const totalVideoDuration = videoDurations.reduce((sum, duration) => sum + duration, 0)
+        
+        if (totalVideoDuration > videoUsage.remaining) {
+          toast({
+            title: "Video limit exceeded",
+            description: "You have exceeded your video upload limit. Please remove some videos or upgrade your account.",
+            variant: "destructive"
+          })
+          setLoading(false)
+          return
+        }
       }
 
       const result = await createPost(user.uid, {
         content: content.trim(),
-        images: processedImages,
+        images: imageUrls,
+        ...(videoUrls.length > 0 && { videos: videoUrls }),
         privacy,
         mentions,
         isFeatured: user.isAdvancedUser ? isFeatured : false
       })
+
+      // Update video usage if videos were uploaded
+      if (videoUrls.length > 0 && videoDurations.length > 0) {
+        const totalVideoDuration = videoDurations.reduce((sum, duration) => sum + duration, 0)
+        await addVideoUsage(user.uid, totalVideoDuration)
+      }
 
       if (result.success) {
         toast({
@@ -157,7 +241,7 @@ export function CreatePostForm({ user }: CreatePostFormProps) {
         })
         
         // Clean up previews
-        imagePreviews.forEach(URL.revokeObjectURL)
+        mediaItems.forEach(item => URL.revokeObjectURL(item.preview))
         
         // Redirect to profile or post
         if (result.postId) {
@@ -234,90 +318,136 @@ export function CreatePostForm({ user }: CreatePostFormProps) {
         </div>
       </div>
 
+      {/* Video Usage */}
+      {videoUsage && (
+        <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="font-medium text-blue-800">Video Usage</h3>
+            <Info className="w-4 h-4 text-blue-600" />
+          </div>
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span>Used: {formatTime(videoUsage.monthlyUsage)}</span>
+              <span>Limit: {formatTime(videoUsage.limit)}</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div
+                className="bg-blue-600 h-2 rounded-full"
+                style={{ width: `${Math.min(100, (videoUsage.monthlyUsage / videoUsage.limit) * 100)}%` }}
+              ></div>
+            </div>
+            <p className="text-xs text-gray-600">
+              {formatTime(videoUsage.remaining)} remaining
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Images */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <Label>Images ({images.length}/10)</Label>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={images.length >= 10}
-          >
-            <ImagePlus className="w-4 h-4 mr-2" />
-            Add Images
-          </Button>
+          <Label>Media ({mediaItems.length}/10)</Label>
+          <div className="flex space-x-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={mediaItems.length >= 10}
+            >
+              <ImagePlus className="w-4 h-4 mr-2" />
+              Add Media
+            </Button>
+          </div>
         </div>
 
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*"
+          accept="image/*,video/*"
           multiple
           className="hidden"
-          onChange={(e) => handleImageUpload(e.target.files)}
+          onChange={(e) => handleMediaUpload(e.target.files)}
         />
 
-        {/* Image Previews */}
-        {images.length > 0 && (
+        {/* Media Previews */}
+        {mediaItems.length > 0 && (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {imagePreviews.map((preview, index) => (
+            {mediaItems.map((mediaItem, index) => (
               <div key={index} className="relative group">
                 <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden">
-                  <img
-                    src={preview}
-                    alt={`Preview ${index + 1}`}
-                    className="w-full h-full object-cover transition-transform"
-                    style={{
-                      transform: `rotate(${imageEdits[index]?.rotation || 0}deg)`,
-                      ...getFilterStyle(imageEdits[index]?.filter || 'none')
-                    }}
-                  />
+                  {mediaItem.type === 'image' ? (
+                    <img
+                      src={mediaItem.preview}
+                      alt={`Preview ${index + 1}`}
+                      className="w-full h-full object-cover transition-transform"
+                      style={{
+                        transform: `rotate(${mediaItem.edit?.rotation || 0}deg)`,
+                        ...getFilterStyle(mediaItem.edit?.filter || 'none')
+                      }}
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-black relative">
+                      <video
+                        src={mediaItem.preview}
+                        className="w-full h-full object-cover"
+                        muted
+                        playsInline
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <Play className="w-12 h-12 text-white opacity-80" />
+                      </div>
+                      <div className="absolute bottom-2 right-2 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded">
+                        Video
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                {/* Image Controls */}
+                {/* Media Controls */}
                 <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all rounded-lg">
                   <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
                     <Button
                       type="button"
                       variant="destructive"
                       size="sm"
-                      onClick={() => removeImage(index)}
+                      onClick={() => removeMedia(index)}
                     >
                       <X className="w-3 h-3" />
                     </Button>
                   </div>
 
-                  <div className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity flex space-x-1">
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => rotateImage(index)}
-                    >
-                      <RotateCcw className="w-3 h-3" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => setEditingImageIndex(editingImageIndex === index ? null : index)}
-                    >
-                      <Palette className="w-3 h-3" />
-                    </Button>
-                  </div>
+                  {mediaItem.type === 'image' && (
+                    <div className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity flex space-x-1">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => rotateImage(index)}
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => setEditingMediaIndex(editingMediaIndex === index ? null : index)}
+                      >
+                        <Palette className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
-                {/* Filter Selector */}
-                {editingImageIndex === index && (
+                {/* Filter Selector for images */}
+                {mediaItem.type === 'image' && editingMediaIndex === index && (
                   <div className="absolute -bottom-12 left-0 right-0 bg-white border rounded-lg p-2 shadow-lg z-10">
                     <div className="flex space-x-1 overflow-x-auto">
                       {IMAGE_FILTERS.map(filter => (
                         <Button
                           key={filter.value}
                           type="button"
-                          variant={imageEdits[index]?.filter === filter.value ? "default" : "outline"}
+                          variant={mediaItem.edit?.filter === filter.value ? "default" : "outline"}
                           size="sm"
                           onClick={() => applyFilter(index, filter.value)}
                           className="whitespace-nowrap"
@@ -402,7 +532,7 @@ export function CreatePostForm({ user }: CreatePostFormProps) {
         <Button
           type="submit"
           className="firegram-primary"
-          disabled={loading || (!content.trim() && images.length === 0)}
+          disabled={loading || (!content.trim() && mediaItems.length === 0)}
         >
           {loading ? (
             "Creating..."

@@ -380,6 +380,25 @@ export function PostView({ post, compact = false, showActions = true }: PostView
           </div>
         )}
 
+        {/* Post Videos */}
+        {post.videos && post.videos.length > 0 && (
+          <div className="mb-4">
+            {post.videos.map((video, index) => (
+              <div key={index} className="relative mb-2 last:mb-0">
+                <video
+                  src={video}
+                  controls
+                  className="w-full rounded-lg max-h-96"
+                  autoPlay={true}
+                  muted
+                  playsInline
+                  loop
+                />
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Engagement Stats */}
         <div className="flex items-center justify-between mb-4 text-sm text-gray-500">
           <div className="flex items-center space-x-4">

@@ -21,6 +21,14 @@ export interface FiregramUser {
   followingCount?: number
   postsCount?: number
   
+  // Video usage tracking
+  videoUsage?: {
+    totalDuration: number // in seconds
+    monthlyUsage?: {
+      [monthYear: string]: number // monthYear format: "2023-08", value: duration in seconds
+    }
+  }
+  
   // MysteryMart integration
   mysteryMartLinked?: boolean
   mysteryMartData?: any
@@ -31,6 +39,7 @@ export interface FiregramPost {
   authorId: string
   content: string
   images: string[]
+  videos?: string[] // Add support for videos
   createdAt: number
   updatedAt?: number
   
@@ -57,7 +66,7 @@ export interface FiregramMessage {
   chatId: string
   senderId: string
   content: string
-  type: 'text' | 'image' | 'file' | 'post_share'
+  type: 'text' | 'image' | 'video' | 'file' | 'post_share'
   createdAt: number
   updatedAt?: number
   
@@ -70,6 +79,7 @@ export interface FiregramMessage {
   // Media
   mediaUrl?: string
   mediaType?: string
+  duration?: number
   
   // Post sharing
   sharedPostId?: string
