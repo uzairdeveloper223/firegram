@@ -3,6 +3,21 @@ import { database } from '@/lib/firebase'
 import { ref, get, set, remove } from 'firebase/database'
 import { verifyMysteryMartBusiness } from '@/lib/mysterymart'
 
+// CORS headers
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+}
+
+// Handle preflight requests
+export async function OPTIONS(request: NextRequest) {
+  return new Response(null, {
+    status: 200,
+    headers: corsHeaders,
+  })
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { requestId, linkingCode, mysteryMartUid } = await request.json()
@@ -10,7 +25,7 @@ export async function POST(request: NextRequest) {
     if (!requestId || !linkingCode || !mysteryMartUid) {
       return NextResponse.json(
         { error: 'Missing required fields' },
-        { status: 400 }
+        { status: 400, headers: corsHeaders }
       )
     }
 
@@ -21,7 +36,7 @@ export async function POST(request: NextRequest) {
     if (!linkingRequestSnapshot.exists()) {
       return NextResponse.json(
         { error: 'Linking request not found' },
-        { status: 404 }
+        { status: 404, headers: corsHeaders }
       )
     }
 
@@ -32,7 +47,7 @@ export async function POST(request: NextRequest) {
       await remove(linkingRequestRef)
       return NextResponse.json(
         { error: 'Linking request has expired' },
-        { status: 400 }
+        { status: 400, headers: corsHeaders }
       )
     }
 
@@ -40,7 +55,7 @@ export async function POST(request: NextRequest) {
     if (linkingRequest.status === 'completed') {
       return NextResponse.json(
         { error: 'Linking request already completed' },
-        { status: 400 }
+        { status: 400, headers: corsHeaders }
       )
     }
 
@@ -48,7 +63,7 @@ export async function POST(request: NextRequest) {
     if (linkingRequest.code !== linkingCode) {
       return NextResponse.json(
         { error: 'Invalid linking code' },
-        { status: 400 }
+        { status: 400, headers: corsHeaders }
       )
     }
 
@@ -58,7 +73,7 @@ export async function POST(request: NextRequest) {
     if (!mysteryMartData.verified) {
       return NextResponse.json(
         { error: 'MysteryMart business not found or not verified' },
-        { status: 404 }
+        { status: 404, headers: corsHeaders }
       )
     }
 
@@ -69,7 +84,7 @@ export async function POST(request: NextRequest) {
     if (!userSnapshot.exists()) {
       return NextResponse.json(
         { error: 'Firegram user not found' },
-        { status: 404 }
+        { status: 404, headers: corsHeaders }
       )
     }
 
@@ -94,13 +109,13 @@ export async function POST(request: NextRequest) {
       message: 'Accounts linked successfully',
       firegramUid: linkingRequest.firegramUid,
       mysteryMartData: mysteryMartData
-    })
+    }, { headers: corsHeaders })
 
   } catch (error) {
     console.error('Error completing linking:', error)
     return NextResponse.json(
       { error: 'Failed to complete linking' },
-      { status: 500 }
+      { status: 500, headers: corsHeaders }
     )
   }
 }
