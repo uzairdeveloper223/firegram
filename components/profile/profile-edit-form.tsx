@@ -211,11 +211,29 @@ export function ProfileEditForm({ user }: ProfileEditFormProps) {
     setLoading(true)
 
     try {
+      // Get current user
+      const { getAuth } = await import('firebase/auth')
+      const { auth } = await import('../../lib/firebase')
+      const authInstance = getAuth()
+      const user = authInstance.currentUser
+
+      if (!user) {
+        toast({
+          title: "Authentication required",
+          description: "Please log in to generate linking code",
+          variant: "destructive"
+        })
+        return
+      }
+
       const response = await fetch('/api/generate-linking-request', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          userId: user.uid
+        })
       })
 
       if (!response.ok) {
