@@ -11,7 +11,6 @@ import { Separator } from '@/components/ui/separator'
 import { useToast } from '@/hooks/use-toast'
 import { FiregramUser } from '@/lib/types'
 import { createPost, extractMentions, processImage } from '@/lib/posts'
-import { uploadMediaToCloudinary } from '@/lib/cloudinary'
 import { getUserVideoUsage, formatTime, addVideoUsage } from '@/lib/video-usage'
 import {
   ImagePlus,
@@ -178,9 +177,18 @@ export function CreatePostForm({ user }: CreatePostFormProps) {
       for (let i = 0; i < mediaItems.length; i++) {
         const mediaItem = mediaItems[i]
         
-        // Upload to Cloudinary
-        const result = await uploadMediaToCloudinary(mediaItem.file)
-        
+        // Upload to Cloudinary via API
+        const formData = new FormData()
+        formData.append('file', mediaItem.file)
+        formData.append('type', mediaItem.type)
+
+        const uploadResponse = await fetch('/api/upload-media', {
+          method: 'POST',
+          body: formData
+        })
+
+        const result = await uploadResponse.json()
+
         if (result.success && result.url) {
           mediaUrls.push(result.url)
         } else {

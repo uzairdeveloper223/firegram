@@ -2,9 +2,9 @@ import { v2 as cloudinary, UploadApiResponse, UploadApiErrorResponse } from 'clo
 
 // Configure Cloudinary
 cloudinary.config({
-  cloud_name: "dyuu73uy2",
-  api_key: "892128784945623",
-  api_secret: "yUBvvigb_WcTX-0n3YUEBNwJUQE",
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || "dyuu73uy2",
+  api_key: process.env.CLOUDINARY_API_KEY || "892128784945623",
+  api_secret: process.env.CLOUDINARY_API_SECRET || "yUBvvigb_WcTX-0n3YUEBNwJUQE",
 })
 
 export interface CloudinaryUploadResult {
