@@ -322,10 +322,10 @@ export default function FollowingPage() {
                       className="flex items-center space-x-4 flex-1 hover:bg-gray-50 p-2 rounded-lg transition-colors"
                     >
                       <div className="w-12 h-12 bg-blue-800 rounded-full flex items-center justify-center text-white font-medium">
-                        {user.displayName.charAt(0).toUpperCase()}
+                        {user.fullName?.charAt(0).toUpperCase() || user.username.charAt(0).toUpperCase()}
                       </div>
                       <div className="flex-1">
-                        <h3 className="font-medium text-gray-900">{user.displayName}</h3>
+                        <h3 className="font-medium text-gray-900">{user.fullName}</h3>
                         <p className="text-sm text-gray-500">@{user.username}</p>
                         {user.bio && (
                           <p className="text-sm text-gray-600 mt-1 line-clamp-1">{user.bio}</p>

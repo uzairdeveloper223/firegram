@@ -1,22 +1,24 @@
 "use client"
 
 import { useState, useEffect } from 'react'
+import Image from 'next/image'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { AdminSettings } from '@/lib/admin'
+import { AdminSettings, checkAndAutoDisableMaintenance } from '@/lib/admin'
 import { Wrench, Clock, AlertTriangle } from 'lucide-react'
 
 interface MaintenanceScreenProps {
   settings: AdminSettings
+  onMaintenanceEnd?: () => void
 }
 
-export function MaintenanceScreen({ settings }: MaintenanceScreenProps) {
+export function MaintenanceScreen({ settings, onMaintenanceEnd }: MaintenanceScreenProps) {
   const [timeRemaining, setTimeRemaining] = useState<string>('')
 
   useEffect(() => {
     if (!settings.maintenanceMode.endTime) return
 
-    const updateTimer = () => {
+    const updateTimer = async () => {
       const now = new Date()
       const utcPlus5 = new Date(now.getTime() + (5 * 60 * 60 * 1000))
       const endTime = new Date(settings.maintenanceMode.endTime!)
@@ -24,7 +26,17 @@ export function MaintenanceScreen({ settings }: MaintenanceScreenProps) {
       const timeDiff = endTime.getTime() - utcPlus5.getTime()
       
       if (timeDiff <= 0) {
-        setTimeRemaining('Maintenance ending soon...')
+        setTimeRemaining('Maintenance ending...')
+        
+        // Try to auto-disable maintenance
+        try {
+          const wasDisabled = await checkAndAutoDisableMaintenance()
+          if (wasDisabled && onMaintenanceEnd) {
+            onMaintenanceEnd()
+          }
+        } catch (error) {
+          console.error('Error auto-disabling maintenance:', error)
+        }
         return
       }
       
@@ -45,15 +57,21 @@ export function MaintenanceScreen({ settings }: MaintenanceScreenProps) {
     const interval = setInterval(updateTimer, 1000)
 
     return () => clearInterval(interval)
-  }, [settings.maintenanceMode.endTime])
+  }, [settings.maintenanceMode.endTime, onMaintenanceEnd])
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="max-w-2xl w-full">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-blue-800 rounded-lg flex items-center justify-center mx-auto mb-4">
-            <span className="text-white font-bold text-2xl">F</span>
+          <div className="w-16 h-16 mx-auto mb-4">
+            <Image
+              src="/favicon.svg"
+              alt="Firegram Logo"
+              width={64}
+              height={64}
+              className="w-full h-full"
+            />
           </div>
           <h1 className="text-3xl font-bold text-blue-800 mb-2">Firegram</h1>
           <Badge variant="outline" className="border-orange-500 text-orange-600">

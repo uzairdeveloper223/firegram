@@ -129,7 +129,7 @@ export const updateAdminSettings = async (settings: Partial<AdminSettings>): Pro
 
 // Enable/Disable maintenance mode
 export const setMaintenanceMode = async (
-  enabled: boolean, 
+  enabled: boolean,
   message: string = 'Firegram is currently under maintenance. Please check back soon!',
   durationHours?: number
 ): Promise<void> => {
@@ -138,17 +138,49 @@ export const setMaintenanceMode = async (
     // Convert to UTC+5
     const utcPlus5 = new Date(now.getTime() + (5 * 60 * 60 * 1000))
     
-    const maintenanceMode = {
+    const maintenanceMode: any = {
       enabled,
-      message,
-      startTime: enabled ? utcPlus5.getTime() : undefined,
-      endTime: enabled && durationHours ? utcPlus5.getTime() + (durationHours * 60 * 60 * 1000) : undefined
+      message
+    }
+    
+    // Only add startTime and endTime if they have valid values
+    if (enabled) {
+      maintenanceMode.startTime = utcPlus5.getTime()
+      if (durationHours && durationHours > 0) {
+        maintenanceMode.endTime = utcPlus5.getTime() + (durationHours * 60 * 60 * 1000)
+      }
     }
     
     await updateAdminSettings({ maintenanceMode })
   } catch (error) {
     console.error('Error setting maintenance mode:', error)
     throw error
+  }
+}
+
+// Check and auto-disable maintenance mode if expired
+export const checkAndAutoDisableMaintenance = async (): Promise<boolean> => {
+  try {
+    const settings = await getAdminSettings()
+    
+    if (!settings.maintenanceMode.enabled || !settings.maintenanceMode.endTime) {
+      return false
+    }
+    
+    const now = new Date()
+    const utcPlus5 = new Date(now.getTime() + (5 * 60 * 60 * 1000))
+    
+    // Check if maintenance period has expired
+    if (utcPlus5.getTime() > settings.maintenanceMode.endTime) {
+      console.log('Maintenance period expired, auto-disabling...')
+      await setMaintenanceMode(false, settings.maintenanceMode.message)
+      return true // Maintenance was auto-disabled
+    }
+    
+    return false // Maintenance is still active
+  } catch (error) {
+    console.error('Error checking maintenance auto-disable:', error)
+    return false
   }
 }
 
@@ -235,7 +267,7 @@ export const checkUserBanStatus = async (userId: string): Promise<UserBan | null
       }
     }
     
-    return { id: userData.banId, ...banData }
+    return { ...banData, id: userData.banId }
   } catch (error) {
     console.error('Error checking ban status:', error)
     return null
@@ -455,11 +487,11 @@ export const getAppStats = async (): Promise<AppStats> => {
       totalUsers: userArray.length,
       activeUsers: userArray.filter(user => user.lastActive && user.lastActive > oneDayAgo).length,
       totalPosts: Object.keys(postsData).length,
-      totalMessages: Object.values(messagesData).reduce((total, chatMessages: any) => 
-        total + Object.keys(chatMessages).length, 0),
+      totalMessages: Object.values(messagesData).reduce((total: number, chatMessages: any) =>
+        total + (chatMessages ? Object.keys(chatMessages).length : 0), 0),
       verifiedUsers: userArray.filter(user => user.isVerified).length,
       advancedUsers: userArray.filter(user => user.isAdvancedUser).length,
-      bannedUsers: userArray.filter(user => user.isBanned).length,
+      bannedUsers: userArray.filter((user: any) => user.isBanned).length,
       pendingVerifications: Object.values(verificationData).filter((req: any) => req.status === 'pending').length,
       pendingAdvancedRequests: Object.values(advancedData).filter((req: any) => req.status === 'pending').length,
       pendingUnbanRequests: Object.values(unbanData).filter((req: any) => req.status === 'pending').length

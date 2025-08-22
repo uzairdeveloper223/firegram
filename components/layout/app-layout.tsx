@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -75,8 +76,14 @@ export function AppLayout({ children }: AppLayoutProps) {
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
             <Link href="/" className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-blue-800 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-lg">F</span>
+              <div className="w-8 h-8">
+                <Image
+                  src="/favicon.svg"
+                  alt="Firegram Logo"
+                  width={32}
+                  height={32}
+                  className="w-full h-full"
+                />
               </div>
               <span className="text-xl font-bold text-blue-800 hidden sm:block">Firegram</span>
             </Link>

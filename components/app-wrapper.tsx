@@ -1,10 +1,11 @@
 "use client"
 
 import { useEffect, useState } from 'react'
+import Image from 'next/image'
 import { useAuth } from '@/components/auth/auth-provider'
 import { MaintenanceScreen } from '@/components/maintenance/maintenance-screen'
 import { BannedScreen } from '@/components/banned/banned-screen'
-import { getAdminSettings, checkUserBanStatus, listenToAdminSettings, AdminSettings, UserBan } from '@/lib/admin'
+import { getAdminSettings, checkUserBanStatus, listenToAdminSettings, checkAndAutoDisableMaintenance, AdminSettings, UserBan } from '@/lib/admin'
 
 interface AppWrapperProps {
   children: React.ReactNode
@@ -36,6 +37,9 @@ export function AppWrapper({ children }: AppWrapperProps) {
 
   const loadAdminSettings = async () => {
     try {
+      // Check if maintenance should be auto-disabled first
+      await checkAndAutoDisableMaintenance()
+      
       const settings = await getAdminSettings()
       setAdminSettings(settings)
     } catch (error) {
@@ -61,7 +65,15 @@ export function AppWrapper({ children }: AppWrapperProps) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
-          <div className="w-8 h-8 bg-blue-800 rounded-full mx-auto mb-4 animate-pulse"></div>
+          <div className="w-8 h-8 mx-auto mb-4 animate-pulse">
+            <Image
+              src="/favicon.svg"
+              alt="Firegram Logo"
+              width={32}
+              height={32}
+              className="w-full h-full"
+            />
+          </div>
           <p className="text-gray-600">Loading Firegram...</p>
         </div>
       </div>
@@ -74,7 +86,12 @@ export function AppWrapper({ children }: AppWrapperProps) {
     const isAdminUser = userProfile?.email === "uzairxdev223@gmail.com"
     
     if (!isAdminUser) {
-      return <MaintenanceScreen settings={adminSettings} />
+      return (
+        <MaintenanceScreen
+          settings={adminSettings}
+          onMaintenanceEnd={() => loadAdminSettings()}
+        />
+      )
     }
   }
 

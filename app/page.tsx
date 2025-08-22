@@ -1,5 +1,6 @@
 "use client"
 
+import Image from 'next/image'
 import { useAuth } from '@/components/auth/auth-provider'
 import { AuthForm } from '@/components/auth/auth-form'
 import { MainFeed } from '@/components/feed/main-feed'
@@ -12,7 +13,15 @@ export default function HomePage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
-          <div className="firegram-loading w-8 h-8 bg-blue-800 rounded-full mx-auto mb-4"></div>
+          <div className="firegram-loading w-8 h-8 mx-auto mb-4">
+            <Image
+              src="/favicon.svg"
+              alt="Firegram Logo"
+              width={32}
+              height={32}
+              className="w-full h-full"
+            />
+          </div>
           <p className="text-gray-600">Loading Firegram...</p>
         </div>
       </div>

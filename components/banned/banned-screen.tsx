@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from 'react'
+import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
@@ -10,11 +11,11 @@ import { UserBan } from '@/lib/admin'
 import { submitUnbanRequest } from '@/lib/admin'
 import { useAuth } from '@/components/auth/auth-provider'
 import { useToast } from '@/hooks/use-toast'
-import { 
-  Shield, 
-  Clock, 
-  AlertTriangle, 
-  MessageSquare, 
+import {
+  Shield,
+  Clock,
+  AlertTriangle,
+  MessageSquare,
   Calendar,
   Timer
 } from 'lucide-react'
@@ -124,8 +125,14 @@ export function BannedScreen({ ban }: BannedScreenProps) {
       <div className="max-w-2xl w-full">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-blue-800 rounded-lg flex items-center justify-center mx-auto mb-4">
-            <span className="text-white font-bold text-2xl">F</span>
+          <div className="w-16 h-16 mx-auto mb-4">
+            <Image
+              src="/favicon.svg"
+              alt="Firegram Logo"
+              width={64}
+              height={64}
+              className="w-full h-full"
+            />
           </div>
           <h1 className="text-3xl font-bold text-blue-800 mb-2">Firegram</h1>
           <Badge variant="destructive" className="bg-red-600">
