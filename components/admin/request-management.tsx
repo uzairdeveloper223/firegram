@@ -62,28 +62,37 @@ export function RequestManagement() {
 
       // Load verification requests
       if (verificationSnapshot.exists()) {
-        const requests = Object.entries(verificationSnapshot.val()).map(([id, data]) => ({
-          id,
-          ...(data as VerificationRequest)
-        })).sort((a, b) => b.submittedAt - a.submittedAt)
+        const requests = Object.entries(verificationSnapshot.val()).map(([requestId, data]) => {
+          const { id, ...requestData } = data as VerificationRequest
+          return {
+            id: requestId,
+            ...requestData
+          }
+        }).sort((a, b) => b.submittedAt - a.submittedAt)
         setVerificationRequests(requests)
       }
 
       // Load advanced user requests
       if (advancedSnapshot.exists()) {
-        const requests = Object.entries(advancedSnapshot.val()).map(([id, data]) => ({
-          id,
-          ...(data as AdvancedUserRequest)
-        })).sort((a, b) => b.submittedAt - a.submittedAt)
+        const requests = Object.entries(advancedSnapshot.val()).map(([requestId, data]) => {
+          const { id, ...requestData } = data as AdvancedUserRequest
+          return {
+            id: requestId,
+            ...requestData
+          }
+        }).sort((a, b) => b.submittedAt - a.submittedAt)
         setAdvancedRequests(requests)
       }
 
       // Load unban requests
       if (unbanSnapshot.exists()) {
-        const requests = Object.entries(unbanSnapshot.val()).map(([id, data]) => ({
-          id,
-          ...(data as UnbanRequest)
-        })).sort((a, b) => b.submittedAt - a.submittedAt)
+        const requests = Object.entries(unbanSnapshot.val()).map(([requestId, data]) => {
+          const { id, ...requestData } = data as UnbanRequest
+          return {
+            id: requestId,
+            ...requestData
+          }
+        }).sort((a, b) => b.submittedAt - a.submittedAt)
         setUnbanRequests(requests)
       }
     } catch (error) {

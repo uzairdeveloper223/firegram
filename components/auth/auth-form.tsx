@@ -68,7 +68,8 @@ export function AuthForm() {
       setLoading(true)
       const result = await uploadToImgBB(file)
       if (result.success && result.url) {
-        setSignUpForm(prev => ({ ...prev, profilePicture: result.url }))
+        const imageUrl = result.url
+        setSignUpForm(prev => ({ ...prev, profilePicture: imageUrl }))
         toast({ title: "Profile picture uploaded successfully" })
       } else {
         toast({ title: "Failed to upload image", variant: "destructive" })

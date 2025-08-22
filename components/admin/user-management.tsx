@@ -89,7 +89,7 @@ export function UserManagement() {
 
   const filteredUsers = users.filter(user =>
     user.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.displayName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    user.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     user.email?.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
@@ -255,11 +255,11 @@ export function UserManagement() {
                 <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
                   <div className="flex items-center space-x-4">
                     <div className="w-12 h-12 bg-blue-800 rounded-full flex items-center justify-center text-white font-bold">
-                      {user.displayName?.[0]?.toUpperCase() || user.username?.[0]?.toUpperCase() || 'U'}
+                      {user.fullName?.[0]?.toUpperCase() || user.username?.[0]?.toUpperCase() || 'U'}
                     </div>
                     <div>
                       <div className="flex items-center space-x-2">
-                        <h3 className="font-medium text-gray-900">{user.displayName || user.username}</h3>
+                        <h3 className="font-medium text-gray-900">{user.fullName || user.username}</h3>
                         {user.isVerified && <Shield className="w-4 h-4 text-blue-600" />}
                         {user.isAdvancedUser && <Star className="w-4 h-4 text-yellow-600" />}
                         {user.isBanned && <UserX className="w-4 h-4 text-red-600" />}

@@ -11,6 +11,10 @@ export interface FiregramUser {
   createdAt: number
   lastActive?: number
   
+  // Admin/moderation
+  isBanned?: boolean
+  banId?: string
+  
   // Privacy settings
   isPrivate?: boolean
   hideOnlineStatus?: boolean
