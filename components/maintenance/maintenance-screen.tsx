@@ -162,6 +162,17 @@ export function MaintenanceScreen({ settings, onMaintenanceEnd }: MaintenanceScr
                   Visit MysteryMart
                 </a>
               </div>
+
+              <div className="flex justify-center space-x-4">
+                <a 
+                  href="https://chatx-orcin.vercel.app/chat?adminChat=true" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                >
+                  Chat with Admin in ChatX
+                </a>
+              </div>
             </div>
 
             {/* Refresh notice */}
