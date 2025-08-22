@@ -27,9 +27,7 @@ const nextConfig = {
     
     return config
   },
-  experimental: {
-    serverComponentsExternalPackages: ['cloudinary']
-  }
+  serverExternalPackages: ['cloudinary']
 }
 
 module.exports = nextConfig

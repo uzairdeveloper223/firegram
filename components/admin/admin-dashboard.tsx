@@ -168,9 +168,9 @@ export function AdminDashboard() {
           </TabsContent>
 
           <TabsContent value="settings">
-            <SystemSettings 
-              settings={adminSettings} 
-              onSettingsUpdate={setAdminSettings} 
+            <SystemSettings
+              adminSettings={adminSettings}
+              onSettingsUpdate={loadInitialData}
             />
           </TabsContent>
         </Tabs>
