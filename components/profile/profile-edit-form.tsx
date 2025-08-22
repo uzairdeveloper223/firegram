@@ -200,19 +200,67 @@ export function ProfileEditForm({ user }: ProfileEditFormProps) {
     }
   }
 
-  const handleMysteryMartLink = async () => {
+  const [linkingRequest, setLinkingRequest] = useState<{
+    requestId: string
+    linkingCode: string
+    directLink: string
+    expiresAt: number
+  } | null>(null)
+
+  const handleGenerateLinkingRequest = async () => {
     setLoading(true)
-    
+
+    try {
+      const response = await fetch('/api/generate-linking-request', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to generate linking request')
+      }
+
+      const data = await response.json()
+
+      setLinkingRequest({
+        requestId: data.requestId,
+        linkingCode: data.linkingCode,
+        directLink: data.directLink,
+        expiresAt: data.expiresAt
+      })
+
+      toast({
+        title: "Linking code generated",
+        description: "Click the link below to complete the connection"
+      })
+    } catch (error) {
+      console.error('Error generating linking request:', error)
+      toast({
+        title: "Error generating linking code",
+        description: "Please try again",
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleMysteryMartLink = async () => {
+    // Use the old email-based method as fallback
+    setLoading(true)
+
     try {
       const mysteryMartData = await verifyMysteryMartBusiness(user.email)
-      
+
       if (mysteryMartData.verified) {
         // Update user profile with MysteryMart data
         const userRef = ref(database, `users/${user.uid}`)
-        await set(userRef, { 
-          ...user, 
+        await set(userRef, {
+          ...user,
           mysteryMartLinked: true,
-          mysteryMartData: mysteryMartData 
+          mysteryMartData: mysteryMartData
         })
 
         toast({
@@ -602,29 +650,87 @@ export function ProfileEditForm({ user }: ProfileEditFormProps) {
                   Link MysteryMart Business
                 </CardTitle>
                 <CardDescription>
-                  Connect your business profile from MysteryMart
+                  Connect your business profile from MysteryMart (works with different emails)
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="flex space-x-3">
-                  <Button 
-                    onClick={handleMysteryMartLink}
-                    disabled={loading}
-                    className="flex-1"
-                    variant="outline"
-                  >
-                    <Store className="w-4 h-4 mr-2" />
-                    Link Account
-                  </Button>
-                  <Button 
-                    asChild
-                    variant="outline"
-                  >
-                    <a href="https://mystery-mart-app.vercel.app" target="_blank" rel="noopener noreferrer">
-                      Register on MysteryMart
-                    </a>
-                  </Button>
-                </div>
+                {!linkingRequest ? (
+                  <div className="space-y-4">
+                    <div className="flex space-x-3">
+                      <Button
+                        onClick={handleGenerateLinkingRequest}
+                        disabled={loading}
+                        className="flex-1"
+                        variant="outline"
+                      >
+                        <Store className="w-4 h-4 mr-2" />
+                        {loading ? "Generating..." : "Generate Linking Code"}
+                      </Button>
+                      <Button
+                        onClick={handleMysteryMartLink}
+                        disabled={loading}
+                        className="flex-1"
+                        variant="outline"
+                      >
+                        <Store className="w-4 h-4 mr-2" />
+                        Link with Same Email
+                      </Button>
+                    </div>
+                    <Button
+                      asChild
+                      variant="outline"
+                      className="w-full"
+                    >
+                      <a href="https://mystery-mart-app.vercel.app" target="_blank" rel="noopener noreferrer">
+                        Register on MysteryMart
+                      </a>
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+                      <div className="text-center">
+                        <h4 className="font-medium text-blue-900 mb-2">Your Linking Code</h4>
+                        <div className="bg-white border-2 border-blue-300 rounded-lg p-3 font-mono text-2xl font-bold text-blue-800 tracking-wider">
+                          {linkingRequest.linkingCode}
+                        </div>
+                      </div>
+
+                      <div className="text-center">
+                        <Button
+                          asChild
+                          className="w-full firegram-primary"
+                        >
+                          <a href={linkingRequest.directLink} target="_blank" rel="noopener noreferrer">
+                            <Store className="w-4 h-4 mr-2" />
+                            Click to Link Account
+                          </a>
+                        </Button>
+                        <p className="text-xs text-blue-600 mt-2">
+                          Code expires in {Math.max(0, Math.ceil((linkingRequest.expiresAt - Date.now()) / 60000))} minutes
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex space-x-2">
+                      <Button
+                        onClick={() => setLinkingRequest(null)}
+                        variant="outline"
+                        className="flex-1"
+                      >
+                        Generate New Code
+                      </Button>
+                      <Button
+                        onClick={handleMysteryMartLink}
+                        disabled={loading}
+                        variant="outline"
+                        className="flex-1"
+                      >
+                        Use Email Method
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
