@@ -22,7 +22,6 @@ import {
   markMessagesAsRead
 } from '@/lib/messaging'
 import { uploadToImgBB } from '@/lib/imgbb'
-import { uploadMediaToCloudinary } from '@/lib/cloudinary'
 import { addVideoUsage } from '@/lib/video-usage'
 import { useToast } from '@/hooks/use-toast'
 import { database } from '@/lib/firebase'
@@ -178,13 +177,23 @@ export function ChatWindow({ chat, currentUserId, onBack }: ChatWindowProps) {
     try {
       setSending(true)
       
-      // Upload to Cloudinary
-      const result = await uploadMediaToCloudinary(file)
+      // Upload to Cloudinary via API
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('type', 'video')
+
+      const uploadResponse = await fetch('/api/upload-media', {
+        method: 'POST',
+        body: formData
+      })
+
+      const result = await uploadResponse.json()
+
       if (result.success && result.url) {
         // Check if user can upload this video based on their usage limits
         const duration = result.duration || 10 // Default to 10 seconds if not available
         const canUpload = await addVideoUsage(currentUserId, duration)
-        
+
         if (!canUpload) {
           toast({
             title: "Video limit exceeded",
@@ -194,7 +203,7 @@ export function ChatWindow({ chat, currentUserId, onBack }: ChatWindowProps) {
           setSending(false)
           return
         }
-        
+
         await sendMessage(chat.id!, currentUserId, {
           content: 'Video',
           type: 'video',
@@ -205,6 +214,7 @@ export function ChatWindow({ chat, currentUserId, onBack }: ChatWindowProps) {
       } else {
         toast({
           title: "Failed to upload video",
+          description: result.error || "Upload failed",
           variant: "destructive"
         })
       }
