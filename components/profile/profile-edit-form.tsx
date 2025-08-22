@@ -226,10 +226,14 @@ export function ProfileEditForm({ user }: ProfileEditFormProps) {
         return
       }
 
+      // Get the user's ID token
+      const idToken = await user.getIdToken()
+
       const response = await fetch('/api/generate-linking-request', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
         },
         body: JSON.stringify({
           userId: user.uid

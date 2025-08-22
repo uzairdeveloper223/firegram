@@ -46,18 +46,23 @@ function generateRequestId(): string {
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId } = await request.json()
-
-    if (!userId) {
-      return NextResponse.json({ error: 'User ID required' }, { status: 400 })
+    // Get the authorization token from headers
+    const authHeader = request.headers.get('authorization')
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Verify the user exists
+    const token = authHeader.substring(7) // Remove 'Bearer ' prefix
+
+    // Verify the Firebase ID token
+    let decodedToken
     try {
-      await admin.auth().getUser(userId)
+      decodedToken = await admin.auth().verifyIdToken(token)
     } catch (error) {
-      return NextResponse.json({ error: 'Invalid user' }, { status: 401 })
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
     }
+
+    const userId = decodedToken.uid
 
     const firegramUid = userId
 

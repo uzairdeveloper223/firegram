@@ -58,7 +58,7 @@ export const uploadVideoToCloudinary = async (file: File): Promise<CloudinaryUpl
   try {
     const arrayBuffer = await file.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
-    
+
     return new Promise((resolve, reject) => {
       cloudinary.uploader.upload_stream(
         {
@@ -66,7 +66,7 @@ export const uploadVideoToCloudinary = async (file: File): Promise<CloudinaryUpl
           folder: "firegram/videos",
           chunk_size: 6000000, // 6MB chunks
           eager: [
-            { streaming_profile: "hd", format: "mp4" }
+            { width: 1080, crop: "limit", format: "mp4" }
           ],
           eager_async: true
         },
