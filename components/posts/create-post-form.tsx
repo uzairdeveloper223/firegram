@@ -187,6 +187,19 @@ export function CreatePostForm({ user }: CreatePostFormProps) {
           body: formData
         })
 
+        // Check if the response is ok
+        if (!uploadResponse.ok) {
+          throw new Error(`HTTP error! status: ${uploadResponse.status}`)
+        }
+
+        // Check content type
+        const contentType = uploadResponse.headers.get('content-type')
+        if (!contentType || !contentType.includes('application/json')) {
+          const errorText = await uploadResponse.text()
+          console.error('Non-JSON response:', errorText)
+          throw new Error('Server returned invalid response')
+        }
+
         const result = await uploadResponse.json()
 
         if (result.success && result.url) {
@@ -268,7 +281,7 @@ export function CreatePostForm({ user }: CreatePostFormProps) {
       console.error('Error creating post:', error)
       toast({
         title: "Error",
-        description: "An unexpected error occurred.",
+        description: error instanceof Error ? error.message : "An unexpected error occurred.",
         variant: "destructive"
       })
     } finally {

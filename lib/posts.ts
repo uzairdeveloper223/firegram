@@ -4,7 +4,6 @@ import { ref, push, set, get, query, orderByChild, equalTo, remove } from 'fireb
 import { database } from './firebase'
 import { FiregramPost } from './types'
 import { uploadToImgBB } from './imgbb'
-import { uploadMediaToCloudinary } from './cloudinary'
 
 export interface CreatePostData {
   content: string
@@ -45,7 +44,7 @@ export const createPost = async (
       }
     }
     
-    // Upload videos to Cloudinary or use provided URLs
+    // Upload videos to Cloudinary via API or use provided URLs
     let videoUrls: string[] = []
     if (data.videos) {
       for (const video of data.videos) {
@@ -53,8 +52,21 @@ export const createPost = async (
           // Already a URL, use as is
           videoUrls.push(video)
         } else {
-          // Upload File to Cloudinary
-          const result = await uploadMediaToCloudinary(video)
+          // Upload File to Cloudinary via API
+          const formData = new FormData()
+          formData.append('file', video)
+          formData.append('type', 'video')
+
+          const uploadResponse = await fetch('/api/upload-media', {
+            method: 'POST',
+            body: formData
+          })
+
+          if (!uploadResponse.ok) {
+            return { success: false, error: 'Failed to upload videos' }
+          }
+
+          const result = await uploadResponse.json()
           if (result.success && result.url) {
             videoUrls.push(result.url)
           } else {

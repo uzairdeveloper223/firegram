@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { uploadImageToCloudinary, uploadVideoToCloudinary } from '@/lib/cloudinary'
+import { uploadImageToCloudinary, uploadVideoToCloudinary } from '@/lib/cloudinary-server'
 
 export async function POST(request: NextRequest) {
   try {
