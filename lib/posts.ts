@@ -4,6 +4,7 @@ import { ref, push, set, get, query, orderByChild, equalTo, remove } from 'fireb
 import { database } from './firebase'
 import { FiregramPost } from './types'
 import { uploadToImgBB } from './imgbb'
+import { uploadMediaToCloudinary } from './cloudinary'
 
 export interface CreatePostData {
   content: string
@@ -53,7 +54,7 @@ export const createPost = async (
           videoUrls.push(video)
         } else {
           // Upload File to Cloudinary
-          const result = await uploadToImgBB(video) // For now, we'll use ImgBB for videos too
+          const result = await uploadMediaToCloudinary(video)
           if (result.success && result.url) {
             videoUrls.push(result.url)
           } else {
