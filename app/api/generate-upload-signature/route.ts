@@ -3,9 +3,9 @@ import { v2 as cloudinary } from 'cloudinary'
 
 // Configure Cloudinary
 cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
+   cloud_name: "dyuu73uy2",
+  api_key: "892128784945623",
+  api_secret: "yUBvvigb_WcTX-0n3YUEBNwJUQE",
 })
 
 export async function POST(request: NextRequest) {
@@ -53,9 +53,9 @@ export async function POST(request: NextRequest) {
       signature,
       timestamp,
       public_id: publicId,
-      cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-      api_key: process.env.CLOUDINARY_API_KEY,
-      upload_url: `https://api.cloudinary.com/v1_1/${process.env.CLOUDINARY_CLOUD_NAME}/${type === 'video' ? 'video' : 'image'}/upload`,
+      cloud_name: "dyuu73uy2",
+      api_key: "892128784945623",
+      upload_url: `https://api.cloudinary.com/v1_1/dyuu73uy2/${type === 'video' ? 'video' : 'image'}/upload`,
       folder,
       resource_type: type === 'video' ? 'video' : 'image',
     })
