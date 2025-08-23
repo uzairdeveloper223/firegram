@@ -22,7 +22,8 @@ import {
   deleteMessage,
   markMessagesAsRead
 } from '@/lib/messaging'
-import { uploadToCloudinaryDirect, validateFile } from '@/lib/cloudinary-client'
+import { validateFile } from '@/lib/cloudinary-client'
+import { uploadFileInChunks } from '@/lib/chunked-upload'
 import { addVideoUsage } from '@/lib/video-usage'
 import { useToast } from '@/hooks/use-toast'
 import { database } from '@/lib/firebase'
@@ -232,30 +233,19 @@ export function ChatWindow({ chat, currentUserId, onBack }: ChatWindowProps) {
         })
 
         try {
-          // Use server-side upload for reliability (works within Vercel limits for smaller files)
-          const formData = new FormData()
-          formData.append('file', mediaItem.file)
-          formData.append('type', mediaItem.type)
-
-          // Simulate progress updates
-          const progressInterval = setInterval(() => {
-            setMediaItems(prev => {
-              const newItems = [...prev]
-              const currentProgress = newItems[i]?.uploadProgress || 0
-              if (currentProgress < 90) {
-                newItems[i] = { ...newItems[i], uploadProgress: currentProgress + 15 }
-              }
-              return newItems
-            })
-          }, 300)
-
-          const uploadResponse = await fetch('/api/upload-media-direct', {
-            method: 'POST',
-            body: formData
-          })
-
-          clearInterval(progressInterval)
-          const result = await uploadResponse.json()
+          // Use chunked upload system (handles large files by splitting into 4MB chunks)
+          const result = await uploadFileInChunks(
+            mediaItem.file,
+            mediaItem.type,
+            (progress: number) => {
+              // Real-time progress updates
+              setMediaItems(prev => {
+                const newItems = [...prev]
+                newItems[i] = { ...newItems[i], uploadProgress: progress }
+                return newItems
+              })
+            }
+          )
 
           if (result.success && result.url) {
             // Check video usage limits for videos

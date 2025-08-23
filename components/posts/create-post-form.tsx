@@ -13,6 +13,7 @@ import { FiregramUser } from '@/lib/types'
 import { createPost, extractMentions, processImage } from '@/lib/posts'
 import { getUserVideoUsage, formatTime, addVideoUsage } from '@/lib/video-usage'
 import { uploadToCloudinaryDirect, validateFile } from '@/lib/cloudinary-client'
+import { uploadFileInChunks } from '@/lib/chunked-upload'
 import {
   ImagePlus,
   X,
@@ -216,30 +217,19 @@ export function CreatePostForm({ user }: CreatePostFormProps) {
         })
 
         try {
-          // Use server-side upload for reliability
-          const formData = new FormData()
-          formData.append('file', mediaItem.file)
-          formData.append('type', mediaItem.type)
-
-          // Simulate progress updates
-          const progressInterval = setInterval(() => {
-            setMediaItems(prev => {
-              const newItems = [...prev]
-              const currentProgress = newItems[i]?.uploadProgress || 0
-              if (currentProgress < 90) {
-                newItems[i] = { ...newItems[i], uploadProgress: currentProgress + 15 }
-              }
-              return newItems
-            })
-          }, 300)
-
-          const uploadResponse = await fetch('/api/upload-media-direct', {
-            method: 'POST',
-            body: formData
-          })
-
-          clearInterval(progressInterval)
-          const result = await uploadResponse.json()
+          // Use chunked upload system (handles large files by splitting into 4MB chunks)
+          const result = await uploadFileInChunks(
+            mediaItem.file,
+            mediaItem.type,
+            (progress: number) => {
+              // Real-time progress updates
+              setMediaItems(prev => {
+                const newItems = [...prev]
+                newItems[i] = { ...newItems[i], uploadProgress: progress }
+                return newItems
+              })
+            }
+          )
 
           if (result.success && result.url) {
             mediaUrls.push(result.url)
@@ -264,34 +254,42 @@ export function CreatePostForm({ user }: CreatePostFormProps) {
         }
       }
 
-      // Separate images and videos
+      // Separate images and videos with proper duration tracking
       const imageUrls: string[] = []
       const videoUrls: string[] = []
-      const videoDurations: number[] = [] // Track video durations
+      const videoDurations: number[] = []
       
-      mediaItems.forEach((item, index) => {
+      // Process uploaded media with duration information from chunked upload
+      for (let i = 0; i < mediaItems.length; i++) {
+        const item = mediaItems[i]
+        const url = mediaUrls[i]
+        
         if (item.type === 'image') {
-          imageUrls.push(mediaUrls[index])
+          imageUrls.push(url)
         } else {
-          videoUrls.push(mediaUrls[index])
-          // For now, we'll use a placeholder duration
-          // In a real implementation, you would get the actual duration from the video file
-          videoDurations.push(10) // Placeholder for 10 seconds
+          videoUrls.push(url)
+          // Get duration from the upload result (detected during chunked upload)
+          const uploadResult = await uploadFileInChunks(item.file, item.type, () => {})
+          videoDurations.push(uploadResult.duration || 10) // Fallback to 10 seconds
         }
-      })
+      }
 
-      // Check video usage limits
-      if (videoDurations.length > 0 && videoUsage) {
+      // Check video usage limits with actual durations
+      if (videoDurations.length > 0) {
         const totalVideoDuration = videoDurations.reduce((sum, duration) => sum + duration, 0)
         
-        if (totalVideoDuration > videoUsage.remaining) {
-          toast({
-            title: "Video limit exceeded",
-            description: "You have exceeded your video upload limit. Please remove some videos or upgrade your account.",
-            variant: "destructive"
-          })
-          setLoading(false)
-          return
+        // Check if user can upload these videos
+        for (let i = 0; i < videoDurations.length; i++) {
+          const canUpload = await addVideoUsage(user.uid, videoDurations[i])
+          if (!canUpload) {
+            toast({
+              title: "Video limit exceeded",
+              description: "You have exceeded your video upload limit. Please upgrade your account.",
+              variant: "destructive"
+            })
+            setLoading(false)
+            return
+          }
         }
       }
 
@@ -303,12 +301,6 @@ export function CreatePostForm({ user }: CreatePostFormProps) {
         mentions,
         isFeatured: user.isAdvancedUser ? isFeatured : false
       })
-
-      // Update video usage if videos were uploaded
-      if (videoUrls.length > 0 && videoDurations.length > 0) {
-        const totalVideoDuration = videoDurations.reduce((sum, duration) => sum + duration, 0)
-        await addVideoUsage(user.uid, totalVideoDuration)
-      }
 
       if (result.success) {
         toast({
