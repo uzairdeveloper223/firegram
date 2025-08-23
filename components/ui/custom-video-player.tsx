@@ -3,14 +3,18 @@
 import { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Slider } from '@/components/ui/slider'
-import { 
-  Play, 
-  Pause, 
-  Volume2, 
-  VolumeX, 
-  Maximize, 
+import {
+  Play,
+  Pause,
+  Volume2,
+  VolumeX,
+  Maximize,
   RotateCcw,
-  Settings
+  Settings,
+  AlertTriangle,
+  Clock,
+  RefreshCw,
+  FileX
 } from 'lucide-react'
 
 interface CustomVideoPlayerProps {
@@ -40,7 +44,31 @@ export function CustomVideoPlayer({
   const [duration, setDuration] = useState(0)
   const [showControls, setShowControls] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [hasError, setHasError] = useState(false)
+  const [isTimeout, setIsTimeout] = useState(false)
+  const [is404, setIs404] = useState(false)
   const controlsTimeoutRef = useRef<NodeJS.Timeout>()
+  const loadTimeoutRef = useRef<NodeJS.Timeout>()
+
+  // Check for 404 errors on the video source
+  useEffect(() => {
+    const checkResource = async () => {
+      try {
+        const response = await fetch(src, { method: 'HEAD' });
+        if (response.status === 404) {
+          setIs404(true);
+          setHasError(true);
+          if (loadTimeoutRef.current) {
+            clearTimeout(loadTimeoutRef.current);
+          }
+        }
+      } catch (error) {
+        // Network error or CORS issue - regular error handling will take care of it
+      }
+    };
+    
+    checkResource();
+  }, [src]);
 
   useEffect(() => {
     const video = videoRef.current
@@ -48,6 +76,10 @@ export function CustomVideoPlayer({
 
     const handleLoadedMetadata = () => {
       setDuration(video.duration)
+      // Clear timeout when video loads successfully
+      if (loadTimeoutRef.current) {
+        clearTimeout(loadTimeoutRef.current)
+      }
     }
 
     const handleTimeUpdate = () => {
@@ -70,13 +102,29 @@ export function CustomVideoPlayer({
     const handleFullscreenChange = () => {
       setIsFullscreen(!!document.fullscreenElement)
     }
+    
+    const handleError = () => {
+      setHasError(true)
+      if (loadTimeoutRef.current) {
+        clearTimeout(loadTimeoutRef.current)
+      }
+    }
 
     video.addEventListener('loadedmetadata', handleLoadedMetadata)
     video.addEventListener('timeupdate', handleTimeUpdate)
     video.addEventListener('play', handlePlay)
     video.addEventListener('pause', handlePause)
     video.addEventListener('volumechange', handleVolumeChange)
+    video.addEventListener('error', handleError)
     document.addEventListener('fullscreenchange', handleFullscreenChange)
+
+    // Set 5-second timeout for video loading
+    loadTimeoutRef.current = setTimeout(() => {
+      if (duration === 0) { // Still not loaded
+        setIsTimeout(true)
+        setHasError(true)
+      }
+    }, 5000)
 
     return () => {
       video.removeEventListener('loadedmetadata', handleLoadedMetadata)
@@ -84,9 +132,14 @@ export function CustomVideoPlayer({
       video.removeEventListener('play', handlePlay)
       video.removeEventListener('pause', handlePause)
       video.removeEventListener('volumechange', handleVolumeChange)
+      video.removeEventListener('error', handleError)
       document.removeEventListener('fullscreenchange', handleFullscreenChange)
+      
+      if (loadTimeoutRef.current) {
+        clearTimeout(loadTimeoutRef.current)
+      }
     }
-  }, [])
+  }, [duration])
 
   const togglePlay = () => {
     const video = videoRef.current
@@ -163,8 +216,67 @@ export function CustomVideoPlayer({
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`
   }
 
+  // Function to retry loading the video
+  const retryLoading = () => {
+    setHasError(false);
+    setIsTimeout(false);
+    const video = videoRef.current;
+    if (video) {
+      video.load(); // Reload the video
+      
+      // Set new timeout
+      if (loadTimeoutRef.current) {
+        clearTimeout(loadTimeoutRef.current);
+      }
+      loadTimeoutRef.current = setTimeout(() => {
+        if (duration === 0) { // Still not loaded
+          setIsTimeout(true);
+          setHasError(true);
+        }
+      }, 5000);
+    }
+  };
+
+  if (hasError) {
+    return (
+      <div className={`relative bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center p-8 ${className}`}>
+        {is404 ? (
+          <FileX className="w-10 h-10 text-red-500 mb-3" />
+        ) : isTimeout ? (
+          <Clock className="w-10 h-10 text-amber-500 mb-3" />
+        ) : (
+          <AlertTriangle className="w-10 h-10 text-red-500 mb-3" />
+        )}
+        <div className="text-center">
+          <p className="text-sm font-medium text-gray-700 mb-2">
+            {is404 ? "Video Not Found" : isTimeout ? "Video Loading Timeout" : "Video Error"}
+          </p>
+          <p className="text-xs text-gray-500 mb-4">
+            {is404
+              ? "This video was removed or not uploaded correctly"
+              : isTimeout
+                ? "This video took too long to load (>5s)"
+                : "There was a problem loading this video"
+            }
+          </p>
+          {!is404 && (
+            <Button
+              onClick={retryLoading}
+              variant="outline"
+              size="sm"
+              className="mx-auto"
+            >
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Try Again
+            </Button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div 
+    <div
       className={`relative group bg-black rounded-lg overflow-hidden ${className}`}
       onMouseEnter={() => setShowControls(true)}
       onMouseLeave={() => setShowControls(false)}
