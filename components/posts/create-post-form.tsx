@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast'
 import { FiregramUser } from '@/lib/types'
 import { createPost, extractMentions, processImage } from '@/lib/posts'
 import { getUserVideoUsage, formatTime, addVideoUsage } from '@/lib/video-usage'
+import { uploadToCloudinaryDirect, validateFile } from '@/lib/cloudinary-client'
 import {
   ImagePlus,
   X,
@@ -41,6 +42,8 @@ interface MediaItem {
     filter: string
   }
   duration?: number // For videos
+  uploadProgress?: number // Upload progress percentage
+  uploading?: boolean // Upload status
 }
 
 const IMAGE_FILTERS = [
@@ -92,25 +95,53 @@ export function CreatePostForm({ user }: CreatePostFormProps) {
     const maxItems = 10 - mediaItems.length // Max 10 media items
 
     Array.from(files).slice(0, maxItems).forEach(file => {
-      if (file.type.startsWith('image/')) {
-        const preview = URL.createObjectURL(file)
+      const type = file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : null
+      
+      if (!type) {
+        toast({
+          title: "Invalid file type",
+          description: `${file.name} is not a supported image or video file.`,
+          variant: "destructive"
+        })
+        return
+      }
+
+      // Validate file
+      const validation = validateFile(file, type)
+      if (!validation.valid) {
+        toast({
+          title: "File validation failed",
+          description: `${file.name}: ${validation.error}`,
+          variant: "destructive"
+        })
+        return
+      }
+
+      const preview = URL.createObjectURL(file)
+      
+      if (type === 'image') {
         newMediaItems.push({
           file,
           preview,
           type: 'image',
-          edit: { rotation: 0, filter: 'none' }
+          edit: { rotation: 0, filter: 'none' },
+          uploadProgress: 0,
+          uploading: false
         })
-      } else if (file.type.startsWith('video/')) {
-        const preview = URL.createObjectURL(file)
+      } else {
         newMediaItems.push({
           file,
           preview,
-          type: 'video'
+          type: 'video',
+          uploadProgress: 0,
+          uploading: false
         })
       }
     })
 
-    setMediaItems(prev => [...prev, ...newMediaItems])
+    if (newMediaItems.length > 0) {
+      setMediaItems(prev => [...prev, ...newMediaItems])
+    }
   }
 
   const removeMedia = (index: number) => {
@@ -171,41 +202,54 @@ export function CreatePostForm({ user }: CreatePostFormProps) {
     setLoading(true)
 
     try {
-      // Process media items (images and videos) with Cloudinary
+      // Process media items (images and videos) with direct Cloudinary upload
       const mediaUrls: string[] = []
       
       for (let i = 0; i < mediaItems.length; i++) {
         const mediaItem = mediaItems[i]
         
-        // Upload to Cloudinary via API
-        const formData = new FormData()
-        formData.append('file', mediaItem.file)
-        formData.append('type', mediaItem.type)
-
-        const uploadResponse = await fetch('/api/upload-media', {
-          method: 'POST',
-          body: formData
+        // Update upload status
+        setMediaItems(prev => {
+          const newItems = [...prev]
+          newItems[i] = { ...newItems[i], uploading: true, uploadProgress: 0 }
+          return newItems
         })
 
-        // Check if the response is ok
-        if (!uploadResponse.ok) {
-          throw new Error(`HTTP error! status: ${uploadResponse.status}`)
-        }
+        try {
+          // Use direct upload for large files (especially videos)
+          const result = await uploadToCloudinaryDirect(
+            mediaItem.file,
+            mediaItem.type,
+            (progress) => {
+              // Update progress
+              setMediaItems(prev => {
+                const newItems = [...prev]
+                newItems[i] = { ...newItems[i], uploadProgress: progress }
+                return newItems
+              })
+            }
+          )
 
-        // Check content type
-        const contentType = uploadResponse.headers.get('content-type')
-        if (!contentType || !contentType.includes('application/json')) {
-          const errorText = await uploadResponse.text()
-          console.error('Non-JSON response:', errorText)
-          throw new Error('Server returned invalid response')
-        }
-
-        const result = await uploadResponse.json()
-
-        if (result.success && result.url) {
-          mediaUrls.push(result.url)
-        } else {
-          throw new Error(result.error || "Failed to upload media")
+          if (result.success && result.url) {
+            mediaUrls.push(result.url)
+            
+            // Mark as completed
+            setMediaItems(prev => {
+              const newItems = [...prev]
+              newItems[i] = { ...newItems[i], uploading: false, uploadProgress: 100 }
+              return newItems
+            })
+          } else {
+            throw new Error(result.error || "Failed to upload media")
+          }
+        } catch (uploadError) {
+          // Mark as failed
+          setMediaItems(prev => {
+            const newItems = [...prev]
+            newItems[i] = { ...newItems[i], uploading: false, uploadProgress: 0 }
+            return newItems
+          })
+          throw uploadError
         }
       }
 
@@ -427,18 +471,35 @@ export function CreatePostForm({ user }: CreatePostFormProps) {
 
                 {/* Media Controls */}
                 <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all rounded-lg">
+                  {/* Upload Progress */}
+                  {mediaItem.uploading && (
+                    <div className="absolute inset-0 bg-black bg-opacity-70 flex flex-col items-center justify-center rounded-lg">
+                      <div className="w-16 h-16 border-4 border-white border-t-transparent rounded-full animate-spin mb-2"></div>
+                      <div className="text-white text-sm font-medium">
+                        {mediaItem.uploadProgress || 0}%
+                      </div>
+                      <div className="w-3/4 bg-gray-600 rounded-full h-2 mt-2">
+                        <div
+                          className="bg-white h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${mediaItem.uploadProgress || 0}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
                     <Button
                       type="button"
                       variant="destructive"
                       size="sm"
                       onClick={() => removeMedia(index)}
+                      disabled={mediaItem.uploading}
                     >
                       <X className="w-3 h-3" />
                     </Button>
                   </div>
 
-                  {mediaItem.type === 'image' && (
+                  {mediaItem.type === 'image' && !mediaItem.uploading && (
                     <div className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity flex space-x-1">
                       <Button
                         type="button"
