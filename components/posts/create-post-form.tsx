@@ -12,7 +12,7 @@ import { useToast } from '@/hooks/use-toast'
 import { FiregramUser } from '@/lib/types'
 import { createPost, extractMentions, processImage } from '@/lib/posts'
 import { getUserVideoUsage, formatTime, addVideoUsage } from '@/lib/video-usage'
-import { uploadToCloudinaryDirect, validateFile } from '@/lib/cloudinary-client'
+import { validateFile } from '@/lib/cloudinary-client'
 import {
   ImagePlus,
   X,
@@ -216,19 +216,30 @@ export function CreatePostForm({ user }: CreatePostFormProps) {
         })
 
         try {
-          // Use direct upload for large files (especially videos)
-          const result = await uploadToCloudinaryDirect(
-            mediaItem.file,
-            mediaItem.type,
-            (progress) => {
-              // Update progress
-              setMediaItems(prev => {
-                const newItems = [...prev]
-                newItems[i] = { ...newItems[i], uploadProgress: progress }
-                return newItems
-              })
-            }
-          )
+          // Use server-side upload via API (more reliable)
+          const formData = new FormData()
+          formData.append('file', mediaItem.file)
+          formData.append('type', mediaItem.type)
+
+          // Simulate progress updates since we can't track server upload progress
+          const progressInterval = setInterval(() => {
+            setMediaItems(prev => {
+              const newItems = [...prev]
+              const currentProgress = newItems[i]?.uploadProgress || 0
+              if (currentProgress < 90) {
+                newItems[i] = { ...newItems[i], uploadProgress: currentProgress + 10 }
+              }
+              return newItems
+            })
+          }, 200)
+
+          const uploadResponse = await fetch('/api/upload-media', {
+            method: 'POST',
+            body: formData
+          })
+
+          clearInterval(progressInterval)
+          const result = await uploadResponse.json()
 
           if (result.success && result.url) {
             mediaUrls.push(result.url)
