@@ -58,14 +58,17 @@ export async function uploadToCloudinaryDirect(
     formData.append('api_key', signature.api_key)
     formData.append('folder', signature.folder)
 
-    // Add parameters that match the signature - DO NOT include resource_type as it's in the URL
+    // Add ONLY the parameters that were included in the signature
+    // These must match exactly what was signed on the server
     if (type === 'video') {
-      formData.append('quality', 'auto')
       formData.append('format', 'mp4')
+      formData.append('quality', 'auto')
     } else {
-      formData.append('quality', 'auto:good')
       formData.append('fetch_format', 'auto')
+      formData.append('quality', 'auto:good')
     }
+
+    // DO NOT add resource_type - it's specified in the upload URL
 
     // Upload directly to Cloudinary with progress tracking
     return new Promise((resolve, reject) => {

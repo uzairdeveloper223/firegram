@@ -1,12 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { v2 as cloudinary } from 'cloudinary'
-
-// Configure Cloudinary
-cloudinary.config({
-   cloud_name: "dyuu73uy2",
-  api_key: "892128784945623",
-  api_secret: "yUBvvigb_WcTX-0n3YUEBNwJUQE",
-})
+import crypto from 'crypto'
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,30 +12,41 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const timestamp = Math.round(new Date().getTime() / 1000)
+    const timestamp = Math.floor(Date.now() / 1000)
     
     // Generate a unique public_id
     const publicId = `${folder}/${type}_${timestamp}_${Math.random().toString(36).substring(2, 15)}`
 
-    // Parameters for the upload - must match exactly what the client sends
-    // Order matters for signature generation
-    const uploadParams: any = {
+    // Parameters that will be sent in the upload request
+    // MUST match exactly what the client sends
+    const paramsToSign: Record<string, string | number> = {
       folder,
       public_id: publicId,
       timestamp,
     }
 
-    // Add type-specific parameters that will be sent by client
+    // Add type-specific parameters that Cloudinary expects
     if (type === 'video') {
-      uploadParams.format = 'mp4'
-      uploadParams.quality = 'auto'
+      paramsToSign.format = 'mp4'
+      paramsToSign.quality = 'auto'
     } else {
-      uploadParams.fetch_format = 'auto'
-      uploadParams.quality = 'auto:good'
+      paramsToSign.fetch_format = 'auto'
+      paramsToSign.quality = 'auto:good'
     }
 
-    // Generate the signature using Cloudinary's method
-    const signature = cloudinary.utils.api_sign_request(uploadParams, "yUBvvigb_WcTX-0n3YUEBNwJUQE")
+    // Step 1: Sort parameters alphabetically by key
+    const sortedKeys = Object.keys(paramsToSign).sort()
+    
+    // Step 2: Create string to sign
+    const stringToSign = sortedKeys
+      .map(key => `${key}=${paramsToSign[key]}`)
+      .join('&')
+
+    // Step 3: Append API secret and hash with SHA1
+    const signature = crypto
+      .createHash('sha1')
+      .update(stringToSign + "yUBvvigb_WcTX-0n3YUEBNwJUQE")
+      .digest('hex')
 
     return NextResponse.json({
       success: true,
@@ -54,6 +58,8 @@ export async function POST(request: NextRequest) {
       upload_url: `https://api.cloudinary.com/v1_1/dyuu73uy2/${type === 'video' ? 'video' : 'image'}/upload`,
       folder,
       resource_type: type === 'video' ? 'video' : 'image',
+      // Include the parameters that were signed
+      signed_params: paramsToSign
     })
 
   } catch (error) {
