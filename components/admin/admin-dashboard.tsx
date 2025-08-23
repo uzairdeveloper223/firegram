@@ -8,14 +8,16 @@ import { MaintenanceControl } from './maintenance-control'
 import { UserManagement } from './user-management'
 import { RequestManagement } from './request-management'
 import { SystemSettings } from './system-settings'
+import { MediaManagement } from './media-management'
 import { AdminSettings, getAdminSettings, listenToAdminSettings, getAppStats, AppStats } from '@/lib/admin'
-import { 
-  BarChart3, 
-  Settings, 
-  Users, 
-  MessageSquare, 
+import {
+  BarChart3,
+  Settings,
+  Users,
+  MessageSquare,
   Wrench,
-  Shield
+  Shield,
+  HardDrive
 } from 'lucide-react'
 
 export function AdminDashboard() {
@@ -121,7 +123,7 @@ export function AdminDashboard() {
       {/* Dashboard Content */}
       <div className="max-w-7xl mx-auto p-6">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-5 mb-8">
+          <TabsList className="grid w-full grid-cols-6 mb-8">
             <TabsTrigger value="overview" className="flex items-center">
               <BarChart3 className="w-4 h-4 mr-2" />
               Overview
@@ -133,6 +135,10 @@ export function AdminDashboard() {
             <TabsTrigger value="requests" className="flex items-center">
               <MessageSquare className="w-4 h-4 mr-2" />
               Requests
+            </TabsTrigger>
+            <TabsTrigger value="media" className="flex items-center">
+              <HardDrive className="w-4 h-4 mr-2" />
+              Media
             </TabsTrigger>
             <TabsTrigger value="maintenance" className="flex items-center">
               <Wrench className="w-4 h-4 mr-2" />
@@ -158,6 +164,10 @@ export function AdminDashboard() {
 
           <TabsContent value="requests">
             <RequestManagement />
+          </TabsContent>
+
+          <TabsContent value="media">
+            <MediaManagement />
           </TabsContent>
 
           <TabsContent value="maintenance">
