@@ -17,15 +17,15 @@ export async function POST(request: NextRequest) {
     // Generate a unique public_id
     const publicId = `${folder}/${type}_${timestamp}_${Math.random().toString(36).substring(2, 15)}`
 
-    // Parameters that will be sent in the upload request
-    // MUST match exactly what the client sends
+    // Parameters to sign (EXCLUDE: file, cloud_name, resource_type, api_key)
+    // Include ONLY the parameters that will be sent in the upload request
     const paramsToSign: Record<string, string | number> = {
       folder,
       public_id: publicId,
-      timestamp,
+      timestamp, // Always required
     }
 
-    // Add type-specific parameters that Cloudinary expects
+    // Add type-specific parameters that will be sent by client
     if (type === 'video') {
       paramsToSign.format = 'mp4'
       paramsToSign.quality = 'auto'
@@ -34,18 +34,19 @@ export async function POST(request: NextRequest) {
       paramsToSign.quality = 'auto:good'
     }
 
-    // Step 1: Sort parameters alphabetically by key
-    const sortedKeys = Object.keys(paramsToSign).sort()
-    
-    // Step 2: Create string to sign
-    const stringToSign = sortedKeys
+    // Follow Cloudinary docs exactly:
+    // 1. Sort parameters alphabetically by key
+    // 2. Join as key=value pairs with &
+    // 3. Append API secret
+    // 4. Hash with SHA-1
+    const stringToSign = Object.keys(paramsToSign)
+      .sort()
       .map(key => `${key}=${paramsToSign[key]}`)
-      .join('&')
+      .join('&') + "yUBvvigb_WcTX-0n3YUEBNwJUQE"
 
-    // Step 3: Append API secret and hash with SHA1
     const signature = crypto
       .createHash('sha1')
-      .update(stringToSign + "yUBvvigb_WcTX-0n3YUEBNwJUQE")
+      .update(stringToSign)
       .digest('hex')
 
     return NextResponse.json({
@@ -57,8 +58,7 @@ export async function POST(request: NextRequest) {
       api_key: "892128784945623",
       upload_url: `https://api.cloudinary.com/v1_1/dyuu73uy2/${type === 'video' ? 'video' : 'image'}/upload`,
       folder,
-      resource_type: type === 'video' ? 'video' : 'image',
-      // Include the parameters that were signed
+      // Return signed params for client reference
       signed_params: paramsToSign
     })
 
