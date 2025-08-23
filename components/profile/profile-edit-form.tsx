@@ -202,11 +202,71 @@ export function ProfileEditForm({ user }: ProfileEditFormProps) {
 
   const [linkingRequest, setLinkingRequest] = useState<{
     requestId: string
-    linkingCode: string
-    directLink: string
+    secureLink: string
     expiresAt: number
+    expiresIn: number
   } | null>(null)
 
+  const handleGenerateSecureLink = async () => {
+    setLoading(true)
+
+    try {
+      // Get current user
+      const { getAuth } = await import('firebase/auth')
+      const { auth } = await import('../../lib/firebase')
+      const authInstance = getAuth()
+      const user = authInstance.currentUser
+
+      if (!user) {
+        toast({
+          title: "Authentication required",
+          description: "Please log in to generate secure link",
+          variant: "destructive"
+        })
+        return
+      }
+
+      // Get the user's ID token
+      const idToken = await user.getIdToken()
+
+      const response = await fetch('/api/generate-secure-link', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to generate secure link')
+      }
+
+      const data = await response.json()
+
+      setLinkingRequest({
+        requestId: data.requestId,
+        secureLink: data.secureLink,
+        expiresAt: data.expiresAt,
+        expiresIn: data.expiresIn
+      })
+
+      toast({
+        title: "Secure link generated",
+        description: "Click the link below to automatically link your accounts"
+      })
+    } catch (error) {
+      console.error('Error generating secure link:', error)
+      toast({
+        title: "Error generating secure link",
+        description: "Please try again",
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Legacy linking method for fallback
   const handleGenerateLinkingRequest = async () => {
     setLoading(true)
 
@@ -246,11 +306,12 @@ export function ProfileEditForm({ user }: ProfileEditFormProps) {
 
       const data = await response.json()
 
+      // Convert to new format for compatibility
       setLinkingRequest({
         requestId: data.requestId,
-        linkingCode: data.linkingCode,
-        directLink: data.directLink,
-        expiresAt: data.expiresAt
+        secureLink: data.directLink,
+        expiresAt: data.expiresAt,
+        expiresIn: Math.max(0, Math.ceil((data.expiresAt - Date.now()) / 1000))
       })
 
       toast({
@@ -680,13 +741,12 @@ export function ProfileEditForm({ user }: ProfileEditFormProps) {
                   <div className="space-y-4">
                     <div className="flex space-x-3">
                       <Button
-                        onClick={handleGenerateLinkingRequest}
+                        onClick={handleGenerateSecureLink}
                         disabled={loading}
-                        className="flex-1"
-                        variant="outline"
+                        className="flex-1 firegram-primary"
                       >
-                        <Store className="w-4 h-4 mr-2" />
-                        {loading ? "Generating..." : "Generate Linking Code"}
+                        <Shield className="w-4 h-4 mr-2" />
+                        {loading ? "Generating..." : "One-Click Link"}
                       </Button>
                       <Button
                         onClick={handleMysteryMartLink}
@@ -698,38 +758,53 @@ export function ProfileEditForm({ user }: ProfileEditFormProps) {
                         Link with Same Email
                       </Button>
                     </div>
-                    <Button
-                      asChild
-                      variant="outline"
-                      className="w-full"
-                    >
-                      <a href="https://mystery-mart-app.vercel.app" target="_blank" rel="noopener noreferrer">
-                        Register on MysteryMart
-                      </a>
-                    </Button>
+                    <div className="flex space-x-3">
+                      <Button
+                        onClick={handleGenerateLinkingRequest}
+                        disabled={loading}
+                        className="flex-1"
+                        variant="outline"
+                      >
+                        <Store className="w-4 h-4 mr-2" />
+                        Manual Code Method
+                      </Button>
+                      <Button
+                        asChild
+                        variant="outline"
+                        className="flex-1"
+                      >
+                        <a href="https://mystery-mart-app.vercel.app" target="_blank" rel="noopener noreferrer">
+                          Register on MysteryMart
+                        </a>
+                      </Button>
+                    </div>
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+                    <div className="bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-lg p-4 space-y-3">
                       <div className="text-center">
-                        <h4 className="font-medium text-blue-900 mb-2">Your Linking Code</h4>
-                        <div className="bg-white border-2 border-blue-300 rounded-lg p-3 font-mono text-2xl font-bold text-blue-800 tracking-wider">
-                          {linkingRequest.linkingCode}
-                        </div>
+                        <h4 className="font-medium text-green-900 mb-2 flex items-center justify-center">
+                          <Shield className="w-4 h-4 mr-2" />
+                          Secure Link Generated
+                        </h4>
+                        <p className="text-sm text-green-700 mb-3">
+                          Click the button below to automatically link your accounts - no code entry required!
+                        </p>
                       </div>
 
                       <div className="text-center">
                         <Button
                           asChild
                           className="w-full firegram-primary"
+                          size="lg"
                         >
-                          <a href={linkingRequest.directLink} target="_blank" rel="noopener noreferrer">
+                          <a href={linkingRequest.secureLink} target="_blank" rel="noopener noreferrer">
                             <Store className="w-4 h-4 mr-2" />
-                            Click to Link Account
+                            Auto-Link Accounts
                           </a>
                         </Button>
-                        <p className="text-xs text-blue-600 mt-2">
-                          Code expires in {Math.max(0, Math.ceil((linkingRequest.expiresAt - Date.now()) / 60000))} minutes
+                        <p className="text-xs text-green-600 mt-2">
+                          Link expires in {Math.max(0, Math.ceil((linkingRequest.expiresAt - Date.now()) / 60000))} minutes
                         </p>
                       </div>
                     </div>
@@ -740,7 +815,7 @@ export function ProfileEditForm({ user }: ProfileEditFormProps) {
                         variant="outline"
                         className="flex-1"
                       >
-                        Generate New Code
+                        Generate New Link
                       </Button>
                       <Button
                         onClick={handleMysteryMartLink}
