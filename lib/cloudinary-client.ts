@@ -58,13 +58,11 @@ export async function uploadToCloudinaryDirect(
     formData.append('api_key', signature.api_key)
     formData.append('folder', signature.folder)
 
-    // Add video-specific parameters
+    // Add parameters that match the signature - DO NOT include resource_type as it's in the URL
     if (type === 'video') {
-      formData.append('resource_type', 'video')
       formData.append('quality', 'auto')
       formData.append('format', 'mp4')
     } else {
-      formData.append('resource_type', 'image')
       formData.append('quality', 'auto:good')
       formData.append('fetch_format', 'auto')
     }

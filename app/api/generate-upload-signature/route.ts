@@ -24,22 +24,17 @@ export async function POST(request: NextRequest) {
     // Generate a unique public_id
     const publicId = `${folder}/${type}_${timestamp}_${Math.random().toString(36).substring(2, 15)}`
 
-    // Parameters for the upload
+    // Parameters for the upload - must match exactly what the client sends
     const uploadParams: any = {
       timestamp,
       public_id: publicId,
       folder,
-      resource_type: type === 'video' ? 'video' : 'image',
     }
 
-    // Add video-specific parameters
+    // Add video-specific parameters that will be sent by client
     if (type === 'video') {
       uploadParams.quality = 'auto'
       uploadParams.format = 'mp4'
-      uploadParams.transformation = [
-        { quality: 'auto:good' },
-        { fetch_format: 'auto' }
-      ]
     } else {
       uploadParams.quality = 'auto:good'
       uploadParams.fetch_format = 'auto'

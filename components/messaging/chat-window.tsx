@@ -5,11 +5,11 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuTrigger 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 import { FiregramChat, FiregramMessage } from '@/lib/types'
 import { SharedPostMessage } from './shared-post-message'
@@ -21,7 +21,7 @@ import {
   deleteMessage,
   markMessagesAsRead
 } from '@/lib/messaging'
-import { uploadToImgBB } from '@/lib/imgbb'
+import { uploadToCloudinaryDirect, validateFile } from '@/lib/cloudinary-client'
 import { addVideoUsage } from '@/lib/video-usage'
 import { useToast } from '@/hooks/use-toast'
 import { database } from '@/lib/firebase'
@@ -37,13 +37,24 @@ import {
   Trash2,
   Users,
   Search,
-  
+  X,
+  ImagePlus,
+  Play
 } from 'lucide-react'
 
 interface ChatWindowProps {
   chat: FiregramChat
   currentUserId: string
   onBack: () => void
+}
+
+interface MediaItem {
+  file: File
+  preview: string
+  type: 'image' | 'video'
+  duration?: number
+  uploadProgress?: number
+  uploading?: boolean
 }
 
 export function ChatWindow({ chat, currentUserId, onBack }: ChatWindowProps) {
@@ -61,6 +72,7 @@ export function ChatWindow({ chat, currentUserId, onBack }: ChatWindowProps) {
   const [isTyping, setIsTyping] = useState(false)
   const [showChatInfo, setShowChatInfo] = useState(false)
   const [otherUser, setOtherUser] = useState<any>(null)
+  const [mediaItems, setMediaItems] = useState<MediaItem[]>([])
 
   useEffect(() => {
     if (!chat.id) return
@@ -113,7 +125,13 @@ export function ChatWindow({ chat, currentUserId, onBack }: ChatWindowProps) {
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!newMessage.trim() || sending) return
+    if ((!newMessage.trim() && mediaItems.length === 0) || sending) return
+
+    // If there are media items, send them instead
+    if (mediaItems.length > 0) {
+      await handleSendMediaMessage()
+      return
+    }
 
     setSending(true)
     
@@ -145,82 +163,154 @@ export function ChatWindow({ chat, currentUserId, onBack }: ChatWindowProps) {
     }
   }
 
-  const handleImageUpload = async (file: File) => {
-    try {
-      setSending(true)
+  const handleMediaUpload = (files: FileList | null) => {
+    if (!files) return
+
+    const newMediaItems: MediaItem[] = []
+    const maxItems = 5 - mediaItems.length // Max 5 media items for messages
+
+    Array.from(files).slice(0, maxItems).forEach(file => {
+      const type = file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : null
       
-      const result = await uploadToImgBB(file)
-      if (result.success && result.url) {
-        await sendMessage(chat.id!, currentUserId, {
-          content: 'Image',
-          type: 'image',
-          mediaUrl: result.url,
-          mediaType: file.type
-        })
-      } else {
+      if (!type) {
         toast({
-          title: "Failed to upload image",
+          title: "Invalid file type",
+          description: `${file.name} is not a supported image or video file.`,
           variant: "destructive"
         })
+        return
       }
-    } catch (error) {
-      toast({
-        title: "Error uploading image",
-        variant: "destructive"
+
+      // Validate file
+      const validation = validateFile(file, type)
+      if (!validation.valid) {
+        toast({
+          title: "File validation failed",
+          description: `${file.name}: ${validation.error}`,
+          variant: "destructive"
+        })
+        return
+      }
+
+      const preview = URL.createObjectURL(file)
+      
+      newMediaItems.push({
+        file,
+        preview,
+        type,
+        uploadProgress: 0,
+        uploading: false
       })
-    } finally {
-      setSending(false)
+    })
+
+    if (newMediaItems.length > 0) {
+      setMediaItems(prev => [...prev, ...newMediaItems])
     }
   }
 
-  const handleVideoUpload = async (file: File) => {
+  const removeMedia = (index: number) => {
+    URL.revokeObjectURL(mediaItems[index].preview)
+    setMediaItems(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const handleSendMediaMessage = async () => {
+    if (mediaItems.length === 0) return
+
+    setSending(true)
+
     try {
-      setSending(true)
-      
-      // Upload to Cloudinary via API
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('type', 'video')
+      // Process media items with direct Cloudinary upload
+      for (let i = 0; i < mediaItems.length; i++) {
+        const mediaItem = mediaItems[i]
+        
+        // Update upload status
+        setMediaItems(prev => {
+          const newItems = [...prev]
+          newItems[i] = { ...newItems[i], uploading: true, uploadProgress: 0 }
+          return newItems
+        })
 
-      const uploadResponse = await fetch('/api/upload-media', {
-        method: 'POST',
-        body: formData
-      })
+        try {
+          // Use direct upload for all media files
+          const result = await uploadToCloudinaryDirect(
+            mediaItem.file,
+            mediaItem.type,
+            (progress) => {
+              // Update progress
+              setMediaItems(prev => {
+                const newItems = [...prev]
+                newItems[i] = { ...newItems[i], uploadProgress: progress }
+                return newItems
+              })
+            }
+          )
 
-      const result = await uploadResponse.json()
+          if (result.success && result.url) {
+            // Check video usage limits for videos
+            if (mediaItem.type === 'video') {
+              const duration = result.duration || 10
+              const canUpload = await addVideoUsage(currentUserId, duration)
 
-      if (result.success && result.url) {
-        // Check if user can upload this video based on their usage limits
-        const duration = result.duration || 10 // Default to 10 seconds if not available
-        const canUpload = await addVideoUsage(currentUserId, duration)
+              if (!canUpload) {
+                toast({
+                  title: "Video limit exceeded",
+                  description: "You have exceeded your video upload limit. Please upgrade your account.",
+                  variant: "destructive"
+                })
+                // Mark as failed
+                setMediaItems(prev => {
+                  const newItems = [...prev]
+                  newItems[i] = { ...newItems[i], uploading: false, uploadProgress: 0 }
+                  return newItems
+                })
+                continue
+              }
+            }
 
-        if (!canUpload) {
+            // Send message with media
+            await sendMessage(chat.id!, currentUserId, {
+              content: mediaItem.type === 'image' ? 'Image' : 'Video',
+              type: mediaItem.type,
+              mediaUrl: result.url,
+              mediaType: mediaItem.file.type,
+              ...(result.duration && { duration: result.duration }),
+              replyTo: replyToMessage?.id
+            })
+            
+            // Mark as completed
+            setMediaItems(prev => {
+              const newItems = [...prev]
+              newItems[i] = { ...newItems[i], uploading: false, uploadProgress: 100 }
+              return newItems
+            })
+          } else {
+            throw new Error(result.error || "Failed to upload media")
+          }
+        } catch (uploadError) {
+          // Mark as failed
+          setMediaItems(prev => {
+            const newItems = [...prev]
+            newItems[i] = { ...newItems[i], uploading: false, uploadProgress: 0 }
+            return newItems
+          })
           toast({
-            title: "Video limit exceeded",
-            description: "You have exceeded your video upload limit. Please upgrade your account.",
+            title: "Upload failed",
+            description: `Failed to upload ${mediaItem.file.name}`,
             variant: "destructive"
           })
-          setSending(false)
-          return
         }
-
-        await sendMessage(chat.id!, currentUserId, {
-          content: 'Video',
-          type: 'video',
-          mediaUrl: result.url,
-          mediaType: file.type,
-          ...(result.duration && { duration: result.duration })
-        })
-      } else {
-        toast({
-          title: "Failed to upload video",
-          description: result.error || "Upload failed",
-          variant: "destructive"
-        })
       }
+
+      // Clear media items and reply after successful uploads
+      mediaItems.forEach(item => URL.revokeObjectURL(item.preview))
+      setMediaItems([])
+      setReplyToMessage(null)
+
     } catch (error) {
+      console.error('Error sending media messages:', error)
       toast({
-        title: "Error uploading video",
+        title: "Error",
+        description: "Failed to send media messages",
         variant: "destructive"
       })
     } finally {
@@ -489,6 +579,87 @@ export function ChatWindow({ chat, currentUserId, onBack }: ChatWindowProps) {
         </div>
       )}
 
+      {/* Media Preview */}
+      {mediaItems.length > 0 && (
+        <div className="p-4 border-t border-gray-200 bg-gray-50">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm font-medium text-gray-700">
+              Media to send ({mediaItems.length}/5)
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleSendMediaMessage}
+              disabled={sending || mediaItems.some(item => item.uploading)}
+            >
+              {sending ? "Sending..." : "Send Media"}
+            </Button>
+          </div>
+          
+          <div className="grid grid-cols-3 gap-2">
+            {mediaItems.map((mediaItem, index) => (
+              <div key={index} className="relative group">
+                <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden">
+                  {mediaItem.type === 'image' ? (
+                    <img
+                      src={mediaItem.preview}
+                      alt={`Preview ${index + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-black relative">
+                      <video
+                        src={mediaItem.preview}
+                        className="w-full h-full object-cover"
+                        muted
+                        playsInline
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <Play className="w-8 h-8 text-white opacity-80" />
+                      </div>
+                      <div className="absolute bottom-1 right-1 bg-black bg-opacity-50 text-white text-xs px-1 py-0.5 rounded">
+                        Video
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Upload Progress */}
+                {mediaItem.uploading && (
+                  <div className="absolute inset-0 bg-black bg-opacity-70 flex flex-col items-center justify-center rounded-lg">
+                    <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin mb-1"></div>
+                    <div className="text-white text-xs font-medium">
+                      {mediaItem.uploadProgress || 0}%
+                    </div>
+                    <div className="w-3/4 bg-gray-600 rounded-full h-1 mt-1">
+                      <div
+                        className="bg-white h-1 rounded-full transition-all duration-300"
+                        style={{ width: `${mediaItem.uploadProgress || 0}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Remove Button */}
+                <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    className="h-6 w-6 p-0"
+                    onClick={() => removeMedia(index)}
+                    disabled={mediaItem.uploading}
+                  >
+                    <X className="w-3 h-3" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Input */}
       <div className="p-4 border-t border-gray-200 bg-white">
         <form onSubmit={handleSendMessage} className="flex items-end space-x-2">
@@ -496,17 +667,9 @@ export function ChatWindow({ chat, currentUserId, onBack }: ChatWindowProps) {
             ref={fileInputRef}
             type="file"
             accept="image/*,video/*"
+            multiple
             className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0]
-              if (file) {
-                if (file.type.startsWith('image/')) {
-                  handleImageUpload(file)
-                } else if (file.type.startsWith('video/')) {
-                  handleVideoUpload(file)
-                }
-              }
-            }}
+            onChange={(e) => handleMediaUpload(e.target.files)}
           />
           
           <div className="flex space-x-1">
@@ -515,24 +678,10 @@ export function ChatWindow({ chat, currentUserId, onBack }: ChatWindowProps) {
               variant="ghost"
               size="sm"
               onClick={() => fileInputRef.current?.click()}
-              disabled={sending}
+              disabled={sending || mediaItems.length >= 5}
+              title="Add media (images/videos)"
             >
-              <Image className="w-4 h-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                // Set accept attribute to video only
-                if (fileInputRef.current) {
-                  fileInputRef.current.accept = "video/*"
-                  fileInputRef.current.click()
-                }
-              }}
-              disabled={sending}
-            >
-              <Video className="w-4 h-4" />
+              <ImagePlus className="w-4 h-4" />
             </Button>
           </div>
 
@@ -549,7 +698,7 @@ export function ChatWindow({ chat, currentUserId, onBack }: ChatWindowProps) {
             type="submit"
             size="sm"
             className="firegram-primary"
-            disabled={!newMessage.trim() || sending}
+            disabled={(!newMessage.trim() && mediaItems.length === 0) || sending || mediaItems.some(item => item.uploading)}
           >
             <Send className="w-4 h-4" />
           </Button>
