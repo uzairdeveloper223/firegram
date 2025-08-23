@@ -1,17 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { uploadToCloudinary } from '@/lib/cloudinary-upload'
-
-// Import the same uploadSessions from init route (in production, use shared storage)
-const uploadSessions = new Map<string, {
-  uploadId: string
-  filename: string
-  fileSize: number
-  totalChunks: number
-  type: 'image' | 'video'
-  duration?: number
-  chunks: Buffer[]
-  createdAt: number
-}>()
+import { getUploadSession, getCombinedChunks, deleteUploadSession, areAllChunksReceived } from '@/lib/firebase-upload-sessions'
 
 export async function POST(request: NextRequest) {
   try {
@@ -24,8 +13,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get upload session
-    const session = uploadSessions.get(uploadId)
+    // Get upload session from database
+    const session = await getUploadSession(uploadId)
     if (!session) {
       return NextResponse.json(
         { success: false, error: 'Upload session not found' },
@@ -34,16 +23,22 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if all chunks are received
-    const missingChunks = session.chunks.findIndex(chunk => chunk === null)
-    if (missingChunks !== -1) {
+    const allChunksReceived = await areAllChunksReceived(uploadId)
+    if (!allChunksReceived) {
       return NextResponse.json(
-        { success: false, error: `Missing chunk at index ${missingChunks}` },
+        { success: false, error: 'Not all chunks have been received' },
         { status: 400 }
       )
     }
 
-    // Combine all chunks into a single buffer
-    const combinedBuffer = Buffer.concat(session.chunks)
+    // Get combined chunks from database
+    const combinedBuffer = await getCombinedChunks(uploadId)
+    if (!combinedBuffer) {
+      return NextResponse.json(
+        { success: false, error: 'Failed to retrieve chunks' },
+        { status: 500 }
+      )
+    }
 
     // Verify file size
     if (combinedBuffer.length !== session.fileSize) {
@@ -54,15 +49,16 @@ export async function POST(request: NextRequest) {
     }
 
     // Create a File-like object from the buffer
-    const reconstructedFile = new File([combinedBuffer], filename, {
+    const uint8Array = new Uint8Array(combinedBuffer)
+    const reconstructedFile = new File([uint8Array], filename, {
       type: type === 'video' ? 'video/mp4' : 'image/jpeg'
     })
 
     // Upload to Cloudinary
     const uploadResult = await uploadToCloudinary(reconstructedFile, type)
 
-    // Clean up session
-    uploadSessions.delete(uploadId)
+    // Clean up session from database
+    await deleteUploadSession(uploadId)
 
     if (uploadResult.success) {
       return NextResponse.json({

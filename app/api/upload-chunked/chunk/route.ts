@@ -1,16 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-
-// Import the same uploadSessions from init route (in production, use shared storage)
-const uploadSessions = new Map<string, {
-  uploadId: string
-  filename: string
-  fileSize: number
-  totalChunks: number
-  type: 'image' | 'video'
-  duration?: number
-  chunks: Buffer[]
-  createdAt: number
-}>()
+import { getUploadSession, storeChunk } from '@/lib/firebase-upload-sessions'
 
 export async function POST(request: NextRequest) {
   try {
@@ -27,8 +16,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get upload session
-    const session = uploadSessions.get(uploadId)
+    // Get upload session from database
+    const session = await getUploadSession(uploadId)
     if (!session) {
       return NextResponse.json(
         { success: false, error: 'Upload session not found' },
@@ -48,11 +37,8 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await chunk.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
 
-    // Store chunk
-    session.chunks[chunkIndex] = buffer
-
-    // Update session
-    uploadSessions.set(uploadId, session)
+    // Store chunk in database
+    await storeChunk(uploadId, chunkIndex, buffer)
 
     return NextResponse.json({
       success: true,

@@ -1,27 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
-
-// In-memory storage for upload sessions (in production, use Redis or database)
-const uploadSessions = new Map<string, {
-  uploadId: string
-  filename: string
-  fileSize: number
-  totalChunks: number
-  type: 'image' | 'video'
-  duration?: number
-  chunks: Buffer[]
-  createdAt: number
-}>()
-
-// Clean up old sessions (older than 1 hour)
-function cleanupOldSessions() {
-  const oneHourAgo = Date.now() - (60 * 60 * 1000)
-  for (const [uploadId, session] of uploadSessions.entries()) {
-    if (session.createdAt < oneHourAgo) {
-      uploadSessions.delete(uploadId)
-    }
-  }
-}
+import { createUploadSession, cleanupOldSessions } from '@/lib/firebase-upload-sessions'
 
 export async function POST(request: NextRequest) {
   try {
@@ -42,21 +21,19 @@ export async function POST(request: NextRequest) {
     }
 
     // Clean up old sessions
-    cleanupOldSessions()
+    await cleanupOldSessions()
 
     // Generate unique upload ID
     const uploadId = crypto.randomUUID()
 
-    // Create upload session
-    uploadSessions.set(uploadId, {
+    // Create upload session in database
+    await createUploadSession({
       uploadId,
       filename,
       fileSize,
       totalChunks,
       type,
-      duration,
-      chunks: new Array(totalChunks).fill(null),
-      createdAt: Date.now()
+      duration
     })
 
     return NextResponse.json({
