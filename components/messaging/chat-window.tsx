@@ -15,6 +15,7 @@ import { FiregramChat, FiregramMessage } from '@/lib/types'
 import { SharedPostMessage } from './shared-post-message'
 import { GroupSettingsDialog } from './group-settings-dialog'
 import { MediaWithFallback } from '@/components/ui/media-with-fallback'
+import { CustomVideoPlayer } from '@/components/ui/custom-video-player'
 import {
   listenToChatMessages,
   sendMessage,
@@ -614,7 +615,7 @@ export function ChatWindow({ chat, currentUserId, onBack }: ChatWindowProps) {
                       <video
                         src={mediaItem.preview}
                         className="w-full h-full object-cover"
-                        muted
+                        muted={false}
                         playsInline
                       />
                       <div className="absolute inset-0 flex items-center justify-center">
@@ -801,23 +802,14 @@ function MessageBubble({
             </div>
           ) : message.type === 'video' && message.mediaUrl ? (
             <div className="mb-2 relative">
-              <MediaWithFallback
+              <CustomVideoPlayer
                 src={message.mediaUrl}
-                alt="Shared video"
-                type="video"
-                className="rounded-lg max-w-full h-auto"
-                videoProps={{
-                  controls: true,
-                  autoPlay: true,
-                  muted: true,
-                  playsInline: true
-                }}
+                className="rounded-lg max-w-full h-auto max-h-64"
+                autoPlay={true}
+                muted={false}
+                playsInline={true}
+                loop={false}
               />
-              {message.duration && (
-                <div className="absolute bottom-2 right-2 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded">
-                  {formatTime(message.duration)}
-                </div>
-              )}
             </div>
           ) : message.type === 'post_share' && message.sharedPostId ? (
             <div className="mb-2">

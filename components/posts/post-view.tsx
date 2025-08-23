@@ -22,6 +22,7 @@ import { ref, get, set, push, onValue, off } from 'firebase/database'
 import { useToast } from '@/hooks/use-toast'
 import { SharePostDialog } from './share-post-dialog'
 import { MediaWithFallback } from '@/components/ui/media-with-fallback'
+import { CustomVideoPlayer } from '@/components/ui/custom-video-player'
 import { 
   Heart, 
   MessageCircle, 
@@ -388,18 +389,13 @@ export function PostView({ post, compact = false, showActions = true }: PostView
           <div className="mb-4">
             {post.videos.map((video, index) => (
               <div key={index} className="relative mb-2 last:mb-0">
-                <MediaWithFallback
+                <CustomVideoPlayer
                   src={video}
-                  alt={`Post video ${index + 1}`}
-                  type="video"
                   className="w-full rounded-lg max-h-96"
-                  videoProps={{
-                    controls: true,
-                    autoPlay: true,
-                    muted: true,
-                    playsInline: true,
-                    loop: true
-                  }}
+                  autoPlay={true}
+                  muted={false}
+                  playsInline={true}
+                  loop={true}
                 />
               </div>
             ))}
