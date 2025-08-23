@@ -205,6 +205,7 @@ export function CreatePostForm({ user }: CreatePostFormProps) {
     try {
       // Process media items (images and videos) with direct Cloudinary upload
       const mediaUrls: string[] = []
+      const uploadResults: any[] = []
       
       for (let i = 0; i < mediaItems.length; i++) {
         const mediaItem = mediaItems[i]
@@ -233,6 +234,7 @@ export function CreatePostForm({ user }: CreatePostFormProps) {
 
           if (result.success && result.url) {
             mediaUrls.push(result.url)
+            uploadResults.push(result)
             
             // Mark as completed
             setMediaItems(prev => {
@@ -259,18 +261,18 @@ export function CreatePostForm({ user }: CreatePostFormProps) {
       const videoUrls: string[] = []
       const videoDurations: number[] = []
       
-      // Process uploaded media with duration information from chunked upload
+      // Process uploaded media with duration information from upload results
       for (let i = 0; i < mediaItems.length; i++) {
         const item = mediaItems[i]
         const url = mediaUrls[i]
+        const result = uploadResults[i]
         
         if (item.type === 'image') {
           imageUrls.push(url)
         } else {
           videoUrls.push(url)
           // Get duration from the upload result (detected during chunked upload)
-          const uploadResult = await uploadFileInChunks(item.file, item.type, () => {})
-          videoDurations.push(uploadResult.duration || 10) // Fallback to 10 seconds
+          videoDurations.push(result.duration || 10) // Fallback to 10 seconds
         }
       }
 
