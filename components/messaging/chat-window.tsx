@@ -21,7 +21,7 @@ import {
   deleteMessage,
   markMessagesAsRead
 } from '@/lib/messaging'
-import { validateFile } from '@/lib/cloudinary-client'
+import { uploadToCloudinaryDirect, validateFile } from '@/lib/cloudinary-client'
 import { addVideoUsage } from '@/lib/video-usage'
 import { useToast } from '@/hooks/use-toast'
 import { database } from '@/lib/firebase'
@@ -231,30 +231,19 @@ export function ChatWindow({ chat, currentUserId, onBack }: ChatWindowProps) {
         })
 
         try {
-          // Use server-side upload via API (more reliable)
-          const formData = new FormData()
-          formData.append('file', mediaItem.file)
-          formData.append('type', mediaItem.type)
-
-          // Simulate progress updates since we can't track server upload progress
-          const progressInterval = setInterval(() => {
-            setMediaItems(prev => {
-              const newItems = [...prev]
-              const currentProgress = newItems[i]?.uploadProgress || 0
-              if (currentProgress < 90) {
-                newItems[i] = { ...newItems[i], uploadProgress: currentProgress + 10 }
-              }
-              return newItems
-            })
-          }, 200)
-
-          const uploadResponse = await fetch('/api/upload-media', {
-            method: 'POST',
-            body: formData
-          })
-
-          clearInterval(progressInterval)
-          const result = await uploadResponse.json()
+          // Use direct upload with fixed signature
+          const result = await uploadToCloudinaryDirect(
+            mediaItem.file,
+            mediaItem.type,
+            (progress: number) => {
+              // Update progress
+              setMediaItems(prev => {
+                const newItems = [...prev]
+                newItems[i] = { ...newItems[i], uploadProgress: progress }
+                return newItems
+              })
+            }
+          )
 
           if (result.success && result.url) {
             // Check video usage limits for videos

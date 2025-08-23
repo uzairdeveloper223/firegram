@@ -25,23 +25,24 @@ export async function POST(request: NextRequest) {
     const publicId = `${folder}/${type}_${timestamp}_${Math.random().toString(36).substring(2, 15)}`
 
     // Parameters for the upload - must match exactly what the client sends
+    // Order matters for signature generation
     const uploadParams: any = {
-      timestamp,
-      public_id: publicId,
       folder,
+      public_id: publicId,
+      timestamp,
     }
 
-    // Add video-specific parameters that will be sent by client
+    // Add type-specific parameters that will be sent by client
     if (type === 'video') {
-      uploadParams.quality = 'auto'
       uploadParams.format = 'mp4'
+      uploadParams.quality = 'auto'
     } else {
-      uploadParams.quality = 'auto:good'
       uploadParams.fetch_format = 'auto'
+      uploadParams.quality = 'auto:good'
     }
 
-    // Generate the signature
-    const signature = cloudinary.utils.api_sign_request(uploadParams, process.env.CLOUDINARY_API_SECRET!)
+    // Generate the signature using Cloudinary's method
+    const signature = cloudinary.utils.api_sign_request(uploadParams, "yUBvvigb_WcTX-0n3YUEBNwJUQE")
 
     return NextResponse.json({
       success: true,
