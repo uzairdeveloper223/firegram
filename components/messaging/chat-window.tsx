@@ -14,6 +14,7 @@ import {
 import { FiregramChat, FiregramMessage } from '@/lib/types'
 import { SharedPostMessage } from './shared-post-message'
 import { GroupSettingsDialog } from './group-settings-dialog'
+import { MediaWithFallback } from '@/components/ui/media-with-fallback'
 import {
   listenToChatMessages,
   sendMessage,
@@ -790,23 +791,25 @@ function MessageBubble({
           {/* Message content */}
           {message.type === 'image' && message.mediaUrl ? (
             <div className="mb-2">
-              <img
+              <MediaWithFallback
                 src={message.mediaUrl}
                 alt="Shared image"
+                type="image"
                 className="rounded-lg max-w-full h-auto"
               />
             </div>
           ) : message.type === 'video' && message.mediaUrl ? (
             <div className="mb-2 relative">
-              <video
+              <MediaWithFallback
                 src={message.mediaUrl}
-                controls
+                alt="Shared video"
+                type="video"
                 className="rounded-lg max-w-full h-auto"
-                autoPlay={true}
-                muted
-                playsInline
-                onLoadedMetadata={(e) => {
-                  // You can handle video metadata here if needed
+                videoProps={{
+                  controls: true,
+                  autoPlay: true,
+                  muted: true,
+                  playsInline: true
                 }}
               />
               {message.duration && (

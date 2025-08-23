@@ -21,6 +21,7 @@ import { database } from '@/lib/firebase'
 import { ref, get, set, push, onValue, off } from 'firebase/database'
 import { useToast } from '@/hooks/use-toast'
 import { SharePostDialog } from './share-post-dialog'
+import { MediaWithFallback } from '@/components/ui/media-with-fallback'
 import { 
   Heart, 
   MessageCircle, 
@@ -352,18 +353,20 @@ export function PostView({ post, compact = false, showActions = true }: PostView
         {post.images && post.images.length > 0 && (
           <div className="mb-4">
             {post.images.length === 1 ? (
-              <img
+              <MediaWithFallback
                 src={post.images[0]}
                 alt="Post image"
+                type="image"
                 className="w-full rounded-lg max-h-96 object-cover"
               />
             ) : (
               <div className="grid grid-cols-2 gap-2">
                 {post.images.slice(0, 4).map((image, index) => (
                   <div key={index} className="relative">
-                    <img
+                    <MediaWithFallback
                       src={image}
                       alt={`Post image ${index + 1}`}
+                      type="image"
                       className="w-full h-48 object-cover rounded-lg"
                     />
                     {index === 3 && post.images!.length > 4 && (
@@ -385,14 +388,18 @@ export function PostView({ post, compact = false, showActions = true }: PostView
           <div className="mb-4">
             {post.videos.map((video, index) => (
               <div key={index} className="relative mb-2 last:mb-0">
-                <video
+                <MediaWithFallback
                   src={video}
-                  controls
+                  alt={`Post video ${index + 1}`}
+                  type="video"
                   className="w-full rounded-lg max-h-96"
-                  autoPlay={true}
-                  muted
-                  playsInline
-                  loop
+                  videoProps={{
+                    controls: true,
+                    autoPlay: true,
+                    muted: true,
+                    playsInline: true,
+                    loop: true
+                  }}
                 />
               </div>
             ))}
