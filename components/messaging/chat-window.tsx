@@ -232,19 +232,30 @@ export function ChatWindow({ chat, currentUserId, onBack }: ChatWindowProps) {
         })
 
         try {
-          // Use direct upload with fixed signature
-          const result = await uploadToCloudinaryDirect(
-            mediaItem.file,
-            mediaItem.type,
-            (progress: number) => {
-              // Update progress
-              setMediaItems(prev => {
-                const newItems = [...prev]
-                newItems[i] = { ...newItems[i], uploadProgress: progress }
-                return newItems
-              })
-            }
-          )
+          // Use server-side upload for reliability (works within Vercel limits for smaller files)
+          const formData = new FormData()
+          formData.append('file', mediaItem.file)
+          formData.append('type', mediaItem.type)
+
+          // Simulate progress updates
+          const progressInterval = setInterval(() => {
+            setMediaItems(prev => {
+              const newItems = [...prev]
+              const currentProgress = newItems[i]?.uploadProgress || 0
+              if (currentProgress < 90) {
+                newItems[i] = { ...newItems[i], uploadProgress: currentProgress + 15 }
+              }
+              return newItems
+            })
+          }, 300)
+
+          const uploadResponse = await fetch('/api/upload-media-direct', {
+            method: 'POST',
+            body: formData
+          })
+
+          clearInterval(progressInterval)
+          const result = await uploadResponse.json()
 
           if (result.success && result.url) {
             // Check video usage limits for videos
