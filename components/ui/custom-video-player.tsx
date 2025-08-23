@@ -10,7 +10,6 @@ import {
   VolumeX,
   Maximize,
   RotateCcw,
-  Settings,
   AlertTriangle,
   Clock,
   RefreshCw,
