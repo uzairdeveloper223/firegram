@@ -794,14 +794,14 @@ export function ProfileEditForm({ user }: ProfileEditFormProps) {
 
                       <div className="text-center">
                         <Button
-                          asChild
+                          onClick={() => {
+                            window.location.href = linkingRequest.secureLink
+                          }}
                           className="w-full firegram-primary"
                           size="lg"
                         >
-                          <a href={linkingRequest.secureLink} target="_blank" rel="noopener noreferrer">
-                            <Store className="w-4 h-4 mr-2" />
-                            Auto-Link Accounts
-                          </a>
+                          <Store className="w-4 h-4 mr-2" />
+                          Auto-Link Accounts
                         </Button>
                         <p className="text-xs text-green-600 mt-2">
                           Link expires in {Math.max(0, Math.ceil((linkingRequest.expiresAt - Date.now()) / 60000))} minutes

@@ -117,6 +117,34 @@ export async function POST(request: NextRequest) {
       mysteryMartLinkedAt: Date.now()
     })
 
+    // Also update Mystery Mart user profile with Firegram linking info
+    try {
+      const mysteryMartUpdateResponse = await fetch(`${process.env.MYSTERYMART_API_URL || 'https://mystery-mart-app.vercel.app'}/api/update-firegram-link`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          mysteryMartUid: mysteryMartUid,
+          firegramData: {
+            uid: linkingRequest.firegramUid,
+            username: userData.username,
+            fullName: userData.fullName,
+            profilePicture: userData.profilePicture,
+            isVerified: userData.isVerified,
+            linkedAt: Date.now()
+          }
+        })
+      })
+
+      if (!mysteryMartUpdateResponse.ok) {
+        console.error('Failed to update Mystery Mart profile with Firegram link')
+      }
+    } catch (error) {
+      console.error('Error updating Mystery Mart profile:', error)
+      // Don't fail the whole process if this fails
+    }
+
     // Mark linking request as completed and clean up
     await set(linkingRequestRef, {
       ...linkingRequest,
